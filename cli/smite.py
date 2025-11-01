@@ -7,6 +7,8 @@ import sys
 import subprocess
 import argparse
 import getpass
+import tempfile
+import shutil
 from pathlib import Path
 
 # Try to import requests, if not available, install it or use urllib
@@ -111,8 +113,9 @@ def cmd_admin_create(args):
             username_repr = repr(username)
             password_repr = repr(password)
             
-            script = f"""
-import asyncio
+            # Create a simpler one-liner script (better for docker exec)
+            # Write script to temp file inside container
+            script_content = f"""import asyncio
 import sys
 from app.database import AsyncSessionLocal, init_db
 from app.models import Admin
@@ -151,13 +154,48 @@ async def create():
 
 asyncio.run(create())
 """
-            # Execute in container
-            proc = subprocess.run(
-                ["docker", "exec", "-i", container_name, "python", "-c", script],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
+            
+            # Write script to temp file and execute (more reliable than -c with multiline)
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as tmp_file:
+                tmp_file.write(script_content)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Copy script to container
+                import shutil
+                copy_proc = subprocess.run(
+                    ["docker", "cp", tmp_file_path, f"{container_name}:/tmp/create_admin.py"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                
+                if copy_proc.returncode != 0:
+                    # Fallback to direct exec with base64 encoded script
+                    import base64
+                    script_b64 = base64.b64encode(script_content.encode()).decode()
+                    script_one_liner = f"echo {script_b64} | base64 -d | python3"
+                    proc = subprocess.run(
+                        ["docker", "exec", container_name, "sh", "-c", script_one_liner],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                else:
+                    # Execute script in container (no -i flag needed)
+                    proc = subprocess.run(
+                        ["docker", "exec", container_name, "python", "/tmp/create_admin.py"],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+            finally:
+                # Clean up temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except:
+                    pass
             
             if proc.returncode == 0:
                 print(proc.stdout)
