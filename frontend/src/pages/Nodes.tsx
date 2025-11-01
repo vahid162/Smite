@@ -46,11 +46,22 @@ const Nodes = () => {
     setShowCertModal(true)
     setCertLoading(true)
     try {
-      const response = await api.get('/panel/ca')
-      setCertContent(response.data)
-    } catch (error) {
+      // Get base URL from axios instance or use window location
+      const baseURL = api.defaults.baseURL || window.location.origin
+      const response = await fetch(`${baseURL}/api/panel/ca`, {
+        headers: {
+          'Accept': 'text/plain'
+        }
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch certificate: ${response.status}`)
+      }
+      const text = await response.text()
+      setCertContent(text)
+    } catch (error: any) {
       console.error('Failed to fetch CA:', error)
-      alert('Failed to fetch CA certificate')
+      alert(`Failed to fetch CA certificate: ${error.message}. Make sure the panel has generated it.`)
+      setShowCertModal(false)
     } finally {
       setCertLoading(false)
     }
@@ -303,10 +314,10 @@ const CertModal = ({ certContent, loading, onClose, onCopy, copied }: CertModalP
           </button>
         </div>
         
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800">
-            <strong>Node Installation:</strong> Copy this certificate and paste it when prompted during node installation. 
-            Save it as <code className="bg-yellow-100 px-1 rounded">certs/ca.crt</code> on the node.
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>Node Installation:</strong> Copy the certificate below (click "Copy Certificate" button). 
+            During node installation, you will be prompted to paste this certificate.
           </p>
         </div>
 

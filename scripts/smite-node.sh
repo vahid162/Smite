@@ -41,9 +41,21 @@ fi
 echo ""
 echo "Configuration:"
 
-read -p "Panel CA certificate path: " PANEL_CA_PATH
-if [ ! -f "$PANEL_CA_PATH" ]; then
-    echo "Error: CA certificate not found at $PANEL_CA_PATH"
+echo ""
+echo "=== CA Certificate ==="
+echo "Please paste the CA certificate from the panel (copy from Nodes > View CA Certificate):"
+echo "Press Enter after pasting, then type 'END' on a new line and press Enter again"
+echo ""
+PANEL_CA_CONTENT=""
+while IFS= read -r line; do
+    if [ "$line" = "END" ]; then
+        break
+    fi
+    PANEL_CA_CONTENT="${PANEL_CA_CONTENT}${line}\n"
+done
+
+if [ -z "$PANEL_CA_CONTENT" ]; then
+    echo "Error: CA certificate is required"
     exit 1
 fi
 
@@ -59,9 +71,14 @@ NODE_API_PORT=${NODE_API_PORT:-8888}
 read -p "Node name (default: node-1): " NODE_NAME
 NODE_NAME=${NODE_NAME:-node-1}
 
-# Copy CA certificate
+# Save CA certificate
 mkdir -p certs
-cp "$PANEL_CA_PATH" certs/ca.crt
+echo -e "$PANEL_CA_CONTENT" > certs/ca.crt
+if [ ! -f "certs/ca.crt" ] || [ ! -s "certs/ca.crt" ]; then
+    echo "Error: Failed to save CA certificate"
+    exit 1
+fi
+echo "✅ CA certificate saved to certs/ca.crt"
 
 # Create .env file
 cat > .env << EOF
