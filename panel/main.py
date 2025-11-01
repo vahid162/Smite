@@ -5,9 +5,9 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
@@ -62,12 +62,42 @@ app.include_router(logs.router, prefix="/api/logs", tags=["logs"])
 
 # Serve frontend static files if available
 static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+static_path = Path(static_dir)
+
+if static_path.exists() and (static_path / "index.html").exists():
+    # Mount static files
+    app.mount("/static", StaticFiles(directory=static_path), name="static-assets")
+    
+    # Serve index.html for all non-API routes (SPA routing)
+    from fastapi.responses import FileResponse
+    
+    @app.get("/{full_path:path}")
+    async def serve_frontend(full_path: str):
+        """Serve frontend for all non-API routes"""
+        # Don't interfere with API routes
+        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("redoc") or full_path.startswith("openapi.json"):
+            raise HTTPException(status_code=404)
+        
+        # Check if it's a static file request
+        file_path = static_path / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        
+        # Otherwise serve index.html for SPA routing
+        index_path = static_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404)
 
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/dashboard")
+    """Root redirect"""
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    index_path = Path(static_dir) / "index.html"
+    if index_path.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(index_path)
+    return {"message": "Smite Panel API", "docs": "/docs"}
 
 
 if __name__ == "__main__":

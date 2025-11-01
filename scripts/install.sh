@@ -133,6 +133,20 @@ if ! python3 -c "import requests" 2>/dev/null; then
     pip3 install requests --quiet 2>/dev/null || python3 -m pip install requests --quiet 2>/dev/null || echo "Note: Install requests manually: pip install requests"
 fi
 
+# Build frontend if needed
+if [ -d "frontend" ] && [ ! -d "frontend/dist" ]; then
+    echo ""
+    echo "Building frontend..."
+    cd frontend
+    if command -v npm &> /dev/null; then
+        npm install && npm run build
+    else
+        echo "Warning: npm not found. Frontend will not be available."
+        echo "Install Node.js and npm, then run: cd frontend && npm install && npm run build"
+    fi
+    cd ..
+fi
+
 # Start services
 echo ""
 echo "Starting Smite Panel..."
