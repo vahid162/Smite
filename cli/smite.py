@@ -262,7 +262,7 @@ asyncio.run(create())
                     # Fallback to direct exec with base64 encoded script
                     import base64
                     script_b64 = base64.b64encode(script_content.encode()).decode()
-                    script_one_liner = f"echo {script_b64} | base64 -d | python3"
+                    script_one_liner = f"cd /app && echo {script_b64} | base64 -d | python3"
                     proc = subprocess.run(
                         ["docker", "exec", container_name, "sh", "-c", script_one_liner],
                         capture_output=True,
@@ -270,9 +270,9 @@ asyncio.run(create())
                         timeout=30
                     )
                 else:
-                    # Execute script in container (no -i flag needed)
+                    # Execute script in container from /app directory so it can import app module
                     proc = subprocess.run(
-                        ["docker", "exec", container_name, "python", "/tmp/create_admin.py"],
+                        ["docker", "exec", "-w", "/app", container_name, "python", "/tmp/create_admin.py"],
                         capture_output=True,
                         text=True,
                         timeout=30
