@@ -84,12 +84,12 @@ const Tunnels = () => {
         {tunnels.map((tunnel) => (
           <div
             key={tunnel.id}
-            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6"
+            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4"
           >
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-2">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{tunnel.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">{tunnel.name}</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {tunnel.core} / {tunnel.type}
                 </p>
               </div>
@@ -111,7 +111,7 @@ const Tunnels = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-2">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</p>
                 <span
@@ -127,14 +127,16 @@ const Tunnels = () => {
                 </span>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Usage</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Usage</p>
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {tunnel.used_mb.toFixed(2)} MB
-                    {tunnel.quota_mb > 0 && ` / ${tunnel.quota_mb} MB`}
+                    {tunnel.quota_mb > 0 
+                      ? `${(tunnel.used_mb / 1024).toFixed(2)} GB / ${(tunnel.quota_mb / 1024).toFixed(0)} GB`
+                      : `${(tunnel.used_mb / 1024).toFixed(2)} GB`
+                    }
                   </p>
                   {tunnel.quota_mb > 0 && (
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                       <div
                         className="bg-blue-600 h-2 rounded-full"
                         style={{ width: `${Math.min((tunnel.used_mb / tunnel.quota_mb) * 100, 100)}%` }}
@@ -144,12 +146,12 @@ const Tunnels = () => {
                 </div>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Revision</p>
-                <p className="text-sm font-medium text-gray-900">{tunnel.revision}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Revision</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{tunnel.revision}</p>
               </div>
               <div>
-                <p className="text-xs text-gray-500 mb-1">Expires</p>
-                <p className="text-sm font-medium text-gray-900">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Expires</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
                   {tunnel.expires_at
                     ? new Date(tunnel.expires_at).toLocaleDateString()
                     : 'Never'}
@@ -157,24 +159,6 @@ const Tunnels = () => {
               </div>
             </div>
 
-            {tunnel.quota_mb > 0 && (
-              <div className="mt-4">
-                <div className="flex justify-between text-xs text-gray-500 mb-1">
-                  <span>Quota Progress</span>
-                  <span>
-                    {((tunnel.used_mb / tunnel.quota_mb) * 100).toFixed(1)}%
-                  </span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{
-                      width: `${Math.min((tunnel.used_mb / tunnel.quota_mb) * 100, 100)}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -349,6 +333,10 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
     expires_date: '',
     remote_port: 10000,
     forward_to: '127.0.0.1:2053',
+    forward_port: '2053',
+    rathole_remote_addr: '',
+    rathole_token: '',
+    rathole_local_addr: '127.0.0.1:8080',
     spec: {} as Record<string, any>,
   })
 
@@ -370,9 +358,20 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
 
       const spec = getSpecForType(formData.core, formData.type)
       spec.remote_port = parseInt(formData.remote_port.toString()) || 10000
-      // For TCP/WS/gRPC tunnels, add forward_to if specified
-      if (formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc') && formData.forward_to) {
-        spec.forward_to = formData.forward_to
+      
+      // For TCP/WS/gRPC tunnels, add forward_to if specified (always use 127.0.0.1:port)
+      if (formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc')) {
+        const forwardPort = formData.forward_port || (formData.forward_to ? formData.forward_to.split(':')[1] : '2053')
+        if (forwardPort) {
+          spec.forward_to = `127.0.0.1:${forwardPort}`
+        }
+      }
+      
+      // For Rathole, add required fields
+      if (formData.core === 'rathole') {
+        spec.remote_addr = formData.rathole_remote_addr
+        spec.token = formData.rathole_token
+        spec.local_addr = formData.rathole_local_addr
       }
       
       const payload = {
@@ -524,7 +523,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Remote Port
+                Proxy Port
               </label>
               <input
                 type="number"
@@ -537,30 +536,33 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                 max="65535"
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">Port on node to listen for connections</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Port on node to listen for connections</p>
             </div>
             {formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Forward To (IP:Port)
+                  Xray Panel Port
                 </label>
                 <input
-                  type="text"
-                  value={formData.forward_to}
-                  onChange={(e) =>
-                    setFormData({ ...formData, forward_to: e.target.value })
-                  }
+                  type="number"
+                  value={formData.forward_port || (formData.forward_to ? formData.forward_to.split(':')[1] : '2053')}
+                  onChange={(e) => {
+                    const port = e.target.value || '2053'
+                    setFormData({ ...formData, forward_port: port, forward_to: `127.0.0.1:${port}` })
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  placeholder="127.0.0.1:2053"
+                  placeholder="2053"
+                  min="1"
+                  max="65535"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {formData.type === 'tcp' 
-                    ? 'Where to forward traffic (e.g., 3x-ui port)' 
-                    : 'Leave empty for VMESS server, or enter IP:Port to forward to local service'}
+                    ? 'Xray panel port (e.g., 3x-ui port)' 
+                    : 'Leave empty for VMESS server, or enter port to forward to local service'}
                 </p>
               </div>
             )}
-            {(!(formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc'))) && (
+            {(!(formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc'))) && formData.core !== 'rathole' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Quota (MB, 0 = unlimited)
@@ -574,6 +576,24 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                   min="0"
                 />
+              </div>
+            )}
+            {formData.core === 'rathole' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Remote Address (Panel)
+                </label>
+                <input
+                  type="text"
+                  value={formData.rathole_remote_addr}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rathole_remote_addr: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                  placeholder="panel.example.com:23333"
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Rathole server address</p>
               </div>
             )}
           </div>
@@ -592,6 +612,43 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                 min="0"
               />
+            </div>
+          )}
+          
+          {formData.core === 'rathole' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Token
+                </label>
+                <input
+                  type="text"
+                  value={formData.rathole_token}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rathole_token: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                  placeholder="your-token"
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Authentication token</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Local Address
+                </label>
+                <input
+                  type="text"
+                  value={formData.rathole_local_addr}
+                  onChange={(e) =>
+                    setFormData({ ...formData, rathole_local_addr: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                  placeholder="127.0.0.1:8080"
+                  required
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Local service to forward</p>
+              </div>
             </div>
           )}
 

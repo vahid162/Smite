@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     db_password: str = "changeme"
     
     # Hysteria2
-    hysteria2_port: int = 443
+    hysteria2_port: int = 4443
     hysteria2_cert_path: str = "./certs/ca.crt"
     hysteria2_key_path: str = "./certs/ca.key"
     

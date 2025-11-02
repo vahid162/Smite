@@ -1,6 +1,8 @@
 import { ReactNode, useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Network, Settings, FileText, Activity, Moon, Sun } from 'lucide-react'
+import { LayoutDashboard, Network, Settings, FileText, Activity, Moon, Sun, Github } from 'lucide-react'
+import SmiteLogoDark from '../assets/SmiteD.png'
+import SmiteLogoLight from '../assets/SmiteL.png'
 
 interface LayoutProps {
   children: ReactNode
@@ -36,9 +38,16 @@ const Layout = ({ children }: LayoutProps) => {
         {/* Sidebar */}
         <aside className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Smite</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Control Panel</p>
+            <div className="flex items-center gap-3">
+              <img 
+                src={darkMode ? SmiteLogoDark : SmiteLogoLight} 
+                alt="Smite Logo" 
+                className="h-8 w-auto"
+              />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Smite</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Control Panel</p>
+              </div>
             </div>
             <button
               onClick={() => setDarkMode(!darkMode)}
@@ -69,6 +78,37 @@ const Layout = ({ children }: LayoutProps) => {
               )
             })}
           </nav>
+          
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-1">
+                <span>Made with</span>
+                <span className="text-red-500">❤️</span>
+                <span>by</span>
+                <a 
+                  href="https://github.com/zZedix" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  zZedix
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <span>v0.1.0</span>
+                <a 
+                  href="https://github.com/zZedix/Smite" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  title="GitHub Repository"
+                >
+                  <Github size={16} />
+                </a>
+              </div>
+            </div>
+          </div>
         </aside>
 
         {/* Main Content */}
