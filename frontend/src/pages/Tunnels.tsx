@@ -213,8 +213,8 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
 
       const spec = getSpecForType(formData.core, formData.type)
       spec.remote_port = parseInt(formData.remote_port.toString()) || 10000
-      // For TCP tunnels, add forward_to if specified
-      if (formData.core === 'xray' && formData.type === 'tcp' && formData.forward_to) {
+      // For TCP/WS/gRPC tunnels, add forward_to if specified
+      if (formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc') && formData.forward_to) {
         spec.forward_to = formData.forward_to
       }
       
@@ -380,7 +380,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
               />
               <p className="text-xs text-gray-500 mt-1">Port on node to listen for connections</p>
             </div>
-            {formData.core === 'xray' && formData.type === 'tcp' && (
+            {formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc') && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Forward To (IP:Port)
@@ -394,10 +394,14 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   placeholder="127.0.0.1:2053"
                 />
-                <p className="text-xs text-gray-500 mt-1">Where to forward traffic (e.g., 3x-ui port)</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.type === 'tcp' 
+                    ? 'Where to forward traffic (e.g., 3x-ui port)' 
+                    : 'Leave empty for VMESS server, or enter IP:Port to forward to local service'}
+                </p>
               </div>
             )}
-            {(!(formData.core === 'xray' && formData.type === 'tcp')) && (
+            {(!(formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc'))) && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Quota (MB, 0 = unlimited)
@@ -415,7 +419,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
             )}
           </div>
           
-          {formData.core === 'xray' && formData.type === 'tcp' && (
+          {formData.core === 'xray' && (formData.type === 'tcp' || formData.type === 'ws' || formData.type === 'grpc') && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Quota (MB, 0 = unlimited)

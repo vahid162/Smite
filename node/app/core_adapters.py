@@ -184,30 +184,102 @@ class WSAdapter(TCPAdapter):
     
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply WebSocket tunnel"""
-        config = {
-            "log": {"loglevel": "warning"},
-            "inbounds": [{
-                "port": spec.get("listen_port", 10000),
-                "protocol": "vmess",
-                "settings": {
-                    "clients": [{"id": spec.get("uuid", "")}]
-                },
-                "streamSettings": {
-                    "network": "ws",
-                    "wsSettings": {
-                        "path": spec.get("path", "/")
+        # Use remote_port for the listening port, or listen_port as fallback
+        listen_port = spec.get("remote_port") or spec.get("listen_port", 10000)
+        
+        # Check if we should forward to a local service (like TCP does) or use as VMESS tunnel
+        forward_to = spec.get("forward_to")
+        
+        if forward_to:
+            # Forward mode: Use dokodemo-door with WS transport to forward to local service
+            if ":" in str(forward_to):
+                forward_host, forward_port = str(forward_to).rsplit(":", 1)
+            else:
+                forward_host = "127.0.0.1"
+                forward_port = str(forward_to)
+            
+            try:
+                forward_port_int = int(forward_port)
+            except (ValueError, TypeError):
+                forward_port_int = 2053
+            
+            config = {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{
+                    "port": int(listen_port),
+                    "protocol": "dokodemo-door",
+                    "settings": {
+                        "address": forward_host,
+                        "port": forward_port_int,
+                        "network": "tcp"
+                    },
+                    "streamSettings": {
+                        "network": "ws",
+                        "wsSettings": {
+                            "path": spec.get("path", "/")
+                        }
                     }
-                }
-            }],
-            "outbounds": [{
-                "protocol": "freedom",
-                "settings": {}
-            }]
-        }
+                }],
+                "outbounds": [{
+                    "protocol": "freedom",
+                    "settings": {}
+                }]
+            }
+        else:
+            # VMESS mode: Create a VMESS WebSocket server
+            config = {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{
+                    "port": int(listen_port),
+                    "protocol": "vmess",
+                    "settings": {
+                        "clients": [{"id": spec.get("uuid", "")}]
+                    },
+                    "streamSettings": {
+                        "network": "ws",
+                        "wsSettings": {
+                            "path": spec.get("path", "/")
+                        }
+                    }
+                }],
+                "outbounds": [{
+                    "protocol": "freedom",
+                    "settings": {}
+                }]
+            }
         
         config_path = self.config_dir / f"{tunnel_id}.json"
+        
+        # Remove old process if exists
+        if tunnel_id in self.processes:
+            self.remove(tunnel_id)
+        
         with open(config_path, "w") as f:
             json.dump(config, f)
+        
+        # Start xray-core
+        try:
+            proc = subprocess.Popen(
+                ["/usr/local/bin/xray", "-config", str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            self.processes[tunnel_id] = proc
+            time.sleep(0.5)
+            if proc.poll() is not None:
+                stderr = proc.stderr.read().decode() if proc.stderr else "Unknown error"
+                raise RuntimeError(f"xray failed to start: {stderr}")
+        except FileNotFoundError:
+            proc = subprocess.Popen(
+                ["xray", "-config", str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            self.processes[tunnel_id] = proc
+            time.sleep(0.5)
+            if proc.poll() is not None:
+                stderr = proc.stderr.read().decode() if proc.stderr else "Unknown error"
+                raise RuntimeError(f"xray failed to start: {stderr}")
 
 
 class GRPCAdapter(TCPAdapter):
@@ -216,30 +288,102 @@ class GRPCAdapter(TCPAdapter):
     
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply gRPC tunnel"""
-        config = {
-            "log": {"loglevel": "warning"},
-            "inbounds": [{
-                "port": spec.get("listen_port", 10000),
-                "protocol": "vmess",
-                "settings": {
-                    "clients": [{"id": spec.get("uuid", "")}]
-                },
-                "streamSettings": {
-                    "network": "grpc",
-                    "grpcSettings": {
-                        "serviceName": spec.get("service_name", "GrpcService")
+        # Use remote_port for the listening port, or listen_port as fallback
+        listen_port = spec.get("remote_port") or spec.get("listen_port", 10000)
+        
+        # Check if we should forward to a local service (like TCP does) or use as VMESS tunnel
+        forward_to = spec.get("forward_to")
+        
+        if forward_to:
+            # Forward mode: Use dokodemo-door with gRPC transport to forward to local service
+            if ":" in str(forward_to):
+                forward_host, forward_port = str(forward_to).rsplit(":", 1)
+            else:
+                forward_host = "127.0.0.1"
+                forward_port = str(forward_to)
+            
+            try:
+                forward_port_int = int(forward_port)
+            except (ValueError, TypeError):
+                forward_port_int = 2053
+            
+            config = {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{
+                    "port": int(listen_port),
+                    "protocol": "dokodemo-door",
+                    "settings": {
+                        "address": forward_host,
+                        "port": forward_port_int,
+                        "network": "tcp"
+                    },
+                    "streamSettings": {
+                        "network": "grpc",
+                        "grpcSettings": {
+                            "serviceName": spec.get("service_name", "GrpcService")
+                        }
                     }
-                }
-            }],
-            "outbounds": [{
-                "protocol": "freedom",
-                "settings": {}
-            }]
-        }
+                }],
+                "outbounds": [{
+                    "protocol": "freedom",
+                    "settings": {}
+                }]
+            }
+        else:
+            # VMESS mode: Create a VMESS gRPC server
+            config = {
+                "log": {"loglevel": "warning"},
+                "inbounds": [{
+                    "port": int(listen_port),
+                    "protocol": "vmess",
+                    "settings": {
+                        "clients": [{"id": spec.get("uuid", "")}]
+                    },
+                    "streamSettings": {
+                        "network": "grpc",
+                        "grpcSettings": {
+                            "serviceName": spec.get("service_name", "GrpcService")
+                        }
+                    }
+                }],
+                "outbounds": [{
+                    "protocol": "freedom",
+                    "settings": {}
+                }]
+            }
         
         config_path = self.config_dir / f"{tunnel_id}.json"
+        
+        # Remove old process if exists
+        if tunnel_id in self.processes:
+            self.remove(tunnel_id)
+        
         with open(config_path, "w") as f:
             json.dump(config, f)
+        
+        # Start xray-core
+        try:
+            proc = subprocess.Popen(
+                ["/usr/local/bin/xray", "-config", str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            self.processes[tunnel_id] = proc
+            time.sleep(0.5)
+            if proc.poll() is not None:
+                stderr = proc.stderr.read().decode() if proc.stderr else "Unknown error"
+                raise RuntimeError(f"xray failed to start: {stderr}")
+        except FileNotFoundError:
+            proc = subprocess.Popen(
+                ["xray", "-config", str(config_path)],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            self.processes[tunnel_id] = proc
+            time.sleep(0.5)
+            if proc.poll() is not None:
+                stderr = proc.stderr.read().decode() if proc.stderr else "Unknown error"
+                raise RuntimeError(f"xray failed to start: {stderr}")
 
 
 class WireGuardAdapter:
