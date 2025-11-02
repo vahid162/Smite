@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/SmiteL.png" alt="Smite Logo" width="200"/>
+  <img src="assets/SmiteD.png" alt="Smite Logo" width="200"/>
   
   # Smite - Tunneling Control Panel
   
