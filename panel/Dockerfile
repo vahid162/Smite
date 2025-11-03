@@ -1,7 +1,5 @@
-FROM python:3.11-slim
-
-WORKDIR /app
-
+# Stage 1: System dependencies and binaries
+FROM python:3.11-slim AS base
 RUN apt-get update && apt-get install -y \
     gcc \
     curl \
@@ -9,7 +7,8 @@ RUN apt-get update && apt-get install -y \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Install rathole
+# Stage 2: Install rathole (cached layer)
+FROM base AS binaries
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then ARCH="x86_64"; \
     elif [ "$ARCH" = "aarch64" ]; then ARCH="aarch64"; \
@@ -37,12 +36,27 @@ RUN ARCH=$(uname -m) && \
     rm -rf /tmp/rathole* && \
     rathole --version || echo "Rathole installed"
 
+# Stage 3: Python dependencies (cached layer)
+FROM base AS deps
+WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Use pip cache if available
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
 
+# Stage 4: Final image
+FROM base
+WORKDIR /app
+
+# Copy binaries from binaries stage
+COPY --from=binaries /usr/local/bin/rathole /usr/local/bin/rathole
+
+# Copy Python dependencies from deps stage
+COPY --from=deps /usr/local /usr/local
+
+# Copy application code (changes most frequently)
 COPY . .
 
 EXPOSE 8000 443/tcp 443/udp
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-

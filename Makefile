@@ -21,13 +21,16 @@ install-node:
 	cd node && pip install -r requirements.txt
 
 build-panel:
-	docker compose build smite-panel
+	DOCKER_BUILDKIT=1 docker compose build smite-panel
 
 build-node:
-	cd node && docker compose build
+	cd node && DOCKER_BUILDKIT=1 docker compose build
 
 build-frontend:
-	cd frontend && npm install && npm run build
+	cd frontend && npm ci --prefer-offline --no-audit --no-fund && npm run build
+
+build-all:
+	DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose build --parallel
 
 up:
 	docker compose up -d
