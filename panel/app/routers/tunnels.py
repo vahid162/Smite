@@ -204,13 +204,18 @@ async def get_tunnel(tunnel_id: str, db: AsyncSession = Depends(get_db)):
 async def update_tunnel(
     tunnel_id: str,
     tunnel_update: TunnelUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    """Update a tunnel"""
+    """Update a tunnel and re-apply if spec changed"""
+    from app.hysteria2_client import Hysteria2Client
+    
     result = await db.execute(select(Tunnel).where(Tunnel.id == tunnel_id))
     tunnel = result.scalar_one_or_none()
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found")
+    
+    spec_changed = tunnel_update.spec is not None and tunnel_update.spec != tunnel.spec
     
     # Update fields
     if tunnel_update.name is not None:
@@ -227,6 +232,62 @@ async def update_tunnel(
     
     await db.commit()
     await db.refresh(tunnel)
+    
+    # Re-apply tunnel if spec changed
+    if spec_changed:
+        result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
+        node = result.scalar_one_or_none()
+        if node:
+            client = Hysteria2Client()
+            try:
+                response = await client.send_to_node(
+                    node_id=node.id,
+                    endpoint="/api/agent/tunnels/apply",
+                    data={
+                        "tunnel_id": tunnel.id,
+                        "core": tunnel.core,
+                        "type": tunnel.type,
+                        "spec": tunnel.spec
+                    }
+                )
+                
+                if response.get("status") == "success":
+                    tunnel.status = "active"
+                    tunnel.error_message = None
+                    
+                    # Update rathole server if needed
+                    if tunnel.core == "rathole" and hasattr(request.app.state, 'rathole_server_manager'):
+                        remote_addr = tunnel.spec.get("remote_addr")
+                        token = tunnel.spec.get("token")
+                        proxy_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
+                        
+                        if remote_addr and token and proxy_port:
+                            try:
+                                request.app.state.rathole_server_manager.start_server(
+                                    tunnel_id=tunnel.id,
+                                    remote_addr=remote_addr,
+                                    token=token,
+                                    proxy_port=int(proxy_port)
+                                )
+                            except Exception as e:
+                                import logging
+                                logging.error(f"Failed to restart Rathole server: {e}")
+                                tunnel.status = "error"
+                                tunnel.error_message = f"Rathole server error: {str(e)}"
+                else:
+                    tunnel.status = "error"
+                    tunnel.error_message = f"Node error: {response.get('message', 'Unknown error')}"
+                    
+                await db.commit()
+                await db.refresh(tunnel)
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to re-apply tunnel: {e}")
+                tunnel.status = "error"
+                tunnel.error_message = f"Re-apply error: {str(e)}"
+                await db.commit()
+                await db.refresh(tunnel)
+    
     return tunnel
 
 
