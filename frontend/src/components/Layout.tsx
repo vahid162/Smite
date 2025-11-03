@@ -42,7 +42,7 @@ const Layout = ({ children }: LayoutProps) => {
               <img 
                 src={darkMode ? SmiteLogoDark : SmiteLogoLight} 
                 alt="Smite Logo" 
-                className="h-24 w-24"
+                className="h-32 w-32"
               />
               <div className="text-center">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Smite</h1>
