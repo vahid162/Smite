@@ -115,8 +115,11 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
             needs_gost_forwarding = db_tunnel.type in ["tcp", "udp", "ws", "grpc"] and db_tunnel.core == "xray"
             needs_rathole_server = db_tunnel.core == "rathole"
             
+            logger.info(f"Tunnel {db_tunnel.id}: needs_gost_forwarding={needs_gost_forwarding}, needs_rathole_server={needs_rathole_server}, type={db_tunnel.type}, core={db_tunnel.core}")
+            
             if needs_gost_forwarding:
                 remote_port = db_tunnel.spec.get("remote_port") or db_tunnel.spec.get("listen_port")
+                logger.info(f"Tunnel {db_tunnel.id}: remote_port={remote_port}, has gost_forwarder={hasattr(request.app.state, 'gost_forwarder')}")
                 if remote_port and hasattr(request.app.state, 'gost_forwarder'):
                     # Get node IP address from metadata
                     node_address = node.node_metadata.get("ip_address") if node.node_metadata else None

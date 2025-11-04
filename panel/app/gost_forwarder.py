@@ -118,6 +118,7 @@ class GostForwarder:
             }
             
             logger.info(f"✅ Started gost forwarding for tunnel {tunnel_id}: {tunnel_type}://:{local_port} -> {node_address}:{remote_port}")
+            logger.info(f"Gost process PID: {proc.pid}")
             return True
             
         except Exception as e:
