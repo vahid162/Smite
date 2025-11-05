@@ -147,18 +147,18 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
             # Rathole: reverse tunnel, needs Rathole server on panel
             needs_gost_forwarding = db_tunnel.type in ["tcp", "udp", "ws", "grpc"] and db_tunnel.core == "xray"
             needs_rathole_server = db_tunnel.core == "rathole"
-                
-                debug_print(f"DEBUG: Calculated needs_gost_forwarding={needs_gost_forwarding}, needs_rathole_server={needs_rathole_server}")
-                
-                # Force log output - use print as well to ensure we see it
-                log_msg = f"Tunnel {db_tunnel.id}: needs_gost_forwarding={needs_gost_forwarding}, needs_rathole_server={needs_rathole_server}, type={db_tunnel.type}, core={db_tunnel.core}"
-                debug_print(log_msg)
-                debug_print(f"DEBUG: About to check if needs_gost_forwarding (value: {needs_gost_forwarding}, type: {type(needs_gost_forwarding)})")
-                debug_print(f"DEBUG: needs_gost_forwarding == True? {needs_gost_forwarding == True}")
-                debug_print(f"DEBUG: needs_gost_forwarding is True? {needs_gost_forwarding is True}")
-                debug_print(f"DEBUG: bool(needs_gost_forwarding)? {bool(needs_gost_forwarding)}")
-                
-                if needs_gost_forwarding:
+            
+            debug_print(f"DEBUG: Calculated needs_gost_forwarding={needs_gost_forwarding}, needs_rathole_server={needs_rathole_server}")
+            
+            # Force log output - use print as well to ensure we see it
+            log_msg = f"Tunnel {db_tunnel.id}: needs_gost_forwarding={needs_gost_forwarding}, needs_rathole_server={needs_rathole_server}, type={db_tunnel.type}, core={db_tunnel.core}"
+            debug_print(log_msg)
+            debug_print(f"DEBUG: About to check if needs_gost_forwarding (value: {needs_gost_forwarding}, type: {type(needs_gost_forwarding)})")
+            debug_print(f"DEBUG: needs_gost_forwarding == True? {needs_gost_forwarding == True}")
+            debug_print(f"DEBUG: needs_gost_forwarding is True? {needs_gost_forwarding is True}")
+            debug_print(f"DEBUG: bool(needs_gost_forwarding)? {bool(needs_gost_forwarding)}")
+            
+            if needs_gost_forwarding:
                     debug_print(f"DEBUG: INSIDE if needs_gost_forwarding block!")
                     debug_print(f"DEBUG: Entering gost forwarding block for tunnel {db_tunnel.id}")
                     # panel_port: port on panel where gost listens (remote_port from spec)

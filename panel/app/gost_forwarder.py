@@ -107,10 +107,10 @@ class GostForwarder:
                 # Ensure directory exists
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 log_f = open(log_file, 'w', buffering=1)  # Line buffered
-                   log_f.write(f"Starting gost with command: {' '.join(cmd)}\n")
-                   log_f.write(f"Tunnel ID: {tunnel_id}\n")
-                   log_f.write(f"Local port: {local_port}, Forward to: {forward_to}\n")
-                   log_f.flush()
+                log_f.write(f"Starting gost with command: {' '.join(cmd)}\n")
+                log_f.write(f"Tunnel ID: {tunnel_id}\n")
+                log_f.write(f"Local port: {local_port}, Forward to: {forward_to}\n")
+                log_f.flush()
                 proc = subprocess.Popen(
                     cmd,
                     stdout=log_f,
