@@ -61,10 +61,12 @@ class TCPAdapter:
             forward_port_int = 2053  # Default to 3x-ui default port
         
         # Use dokodemo-door to forward TCP traffic
+        # Listen on 0.0.0.0 to accept connections from panel
         config = {
             "log": {"loglevel": "warning"},
             "inbounds": [{
                 "port": int(listen_port),
+                "listen": "0.0.0.0",  # Listen on all interfaces to accept connections from panel
                 "protocol": "dokodemo-door",
                 "settings": {
                     "address": forward_host,
@@ -211,6 +213,7 @@ class UDPAdapter(TCPAdapter):
                 "log": {"loglevel": "warning"},
                 "inbounds": [{
                     "port": int(listen_port),
+                    "listen": "0.0.0.0",  # Listen on all interfaces
                     "protocol": "dokodemo-door",
                     "settings": {
                         "address": forward_host,
@@ -235,6 +238,7 @@ class UDPAdapter(TCPAdapter):
                 "log": {"loglevel": "warning"},
                 "inbounds": [{
                     "port": int(listen_port),
+                    "listen": "0.0.0.0",  # Listen on all interfaces
                     "protocol": "vless",
                     "settings": {
                         "clients": [{"id": uuid}],
@@ -310,6 +314,7 @@ class WSAdapter(TCPAdapter):
             "log": {"loglevel": "warning"},
             "inbounds": [{
                 "port": int(listen_port),
+                "listen": "0.0.0.0",  # Listen on all interfaces
                 "protocol": "vmess",
                 "settings": {
                     "clients": [{"id": spec.get("uuid", "")}]
@@ -374,6 +379,7 @@ class GRPCAdapter(TCPAdapter):
             "log": {"loglevel": "warning"},
             "inbounds": [{
                 "port": int(listen_port),
+                "listen": "0.0.0.0",  # Listen on all interfaces
                 "protocol": "vmess",
                 "settings": {
                     "clients": [{"id": spec.get("uuid", "")}]
