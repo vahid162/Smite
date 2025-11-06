@@ -63,9 +63,22 @@ class GostForwarder:
                 else:
                     forward_host = forward_to
                     forward_port = "8080"
+                # Force IPv4 binding: get the host's primary IPv4 address
+                # With host networking, we need to bind to the actual IPv4 interface
+                import socket
+                try:
+                    # Get the host's primary IPv4 address (not 127.0.0.1)
+                    # Connect to a remote address to determine the local IP
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    s.connect(("8.8.8.8", 80))
+                    bind_ip = s.getsockname()[0]
+                    s.close()
+                except Exception:
+                    # Fallback to 0.0.0.0 if we can't determine the IP
+                    bind_ip = "0.0.0.0"
                 cmd = [
                     "/usr/local/bin/gost",
-                    f"-L=ws://0.0.0.0:{local_port}/tcp://{forward_host}:{forward_port}"
+                    f"-L=ws://{bind_ip}:{local_port}/tcp://{forward_host}:{forward_port}"
                 ]
             elif tunnel_type == "grpc":
                 if ":" in forward_to:
