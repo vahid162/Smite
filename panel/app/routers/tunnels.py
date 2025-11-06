@@ -204,12 +204,19 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                             forward_to=forward_to,
                             tunnel_type=db_tunnel.type
                         )
+                        import time
+                        time.sleep(2)
+                        if not request.app.state.gost_forwarder.is_forwarding(db_tunnel.id):
+                            raise RuntimeError("Gost process started but is not running")
                         logger.info(f"Successfully started gost forwarding for tunnel {db_tunnel.id}")
                     except Exception as e:
                         error_msg = str(e)
                         logger.error(f"Failed to start gost forwarding for tunnel {db_tunnel.id}: {error_msg}", exc_info=True)
                         db_tunnel.status = "error"
                         db_tunnel.error_message = f"Gost forwarding error: {error_msg}"
+                        await db.commit()
+                        await db.refresh(db_tunnel)
+                        return db_tunnel
                 else:
                     missing = []
                     if not panel_port:
