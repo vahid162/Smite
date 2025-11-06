@@ -4,6 +4,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Optional
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +63,32 @@ class GostForwarder:
                 else:
                     forward_host = forward_to
                     forward_port = "8080"
-                cmd = [
-                    "/usr/local/bin/gost",
-                    f"-L=ws://0.0.0.0:{local_port}/tcp://{forward_host}:{forward_port}"
-                ]
+                if settings.https_enabled:
+                    cert_path = Path(settings.https_cert_path)
+                    key_path = Path(settings.https_key_path)
+                    if not cert_path.is_absolute():
+                        import os
+                        cert_path = Path(os.getcwd()) / cert_path
+                    if not key_path.is_absolute():
+                        import os
+                        key_path = Path(os.getcwd()) / key_path
+                    if cert_path.exists() and key_path.exists():
+                        cmd = [
+                            "/usr/local/bin/gost",
+                            f"-L=wss://0.0.0.0:{local_port}?cert={cert_path}&key={key_path}/tcp://{forward_host}:{forward_port}"
+                        ]
+                        logger.info(f"Using WSS for WebSocket tunnel (HTTPS enabled)")
+                    else:
+                        logger.warning(f"HTTPS enabled but cert/key not found at {cert_path}/{key_path}, falling back to ws://")
+                        cmd = [
+                            "/usr/local/bin/gost",
+                            f"-L=ws://0.0.0.0:{local_port}/tcp://{forward_host}:{forward_port}"
+                        ]
+                else:
+                    cmd = [
+                        "/usr/local/bin/gost",
+                        f"-L=ws://0.0.0.0:{local_port}/tcp://{forward_host}:{forward_port}"
+                    ]
             elif tunnel_type == "grpc":
                 if ":" in forward_to:
                     forward_host, forward_port = forward_to.rsplit(":", 1)
