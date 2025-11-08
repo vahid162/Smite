@@ -51,7 +51,7 @@ RUN set -eux; \
         *) echo "Unsupported architecture: $ARCH"; exit 1 ;; \
     esac; \
     RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/Musixal/Backhaul/releases/latest)"; \
-    ASSET_URL="$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name | test(\"linux.*${PLATFORM}\")) | .browser_download_url" | head -n1)"; \
+    ASSET_URL="$(printf '%s' "$RELEASE_JSON" | jq -r --arg platform "$PLATFORM" '.assets[] | select(.name | test("linux_" + $platform)) | .browser_download_url' | head -n1)"; \
     if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then \
         echo "Unable to find Backhaul release asset for platform: $PLATFORM"; \
         exit 1; \
