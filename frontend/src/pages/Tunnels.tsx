@@ -817,6 +817,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                     <option value="udp">UDP</option>
                     <option value="ws">WebSocket (WS)</option>
                     <option value="wsmux">WebSocket Mux</option>
+                    <option value="tcpmux">TCPMux</option>
                   </>
                 ) : (
                   <>
