@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
+from app.utils import parse_address_port, format_address_port
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,32 +39,25 @@ class GostForwarder:
                 self.stop_forward(tunnel_id)
                 time.sleep(0.5)
             
+            # Parse forward_to address (handles IPv4, IPv6, and hostnames)
+            forward_host, forward_port = parse_address_port(forward_to)
+            if forward_port is None:
+                forward_port = 8080
+            
+            # Format target address for GOST (IPv6 needs brackets in URLs)
+            target_addr = format_address_port(forward_host, forward_port)
+            
             if tunnel_type == "tcp":
-                if ":" in forward_to:
-                    forward_host, forward_port = forward_to.rsplit(":", 1)
-                else:
-                    forward_host = forward_to
-                    forward_port = "8080"
                 cmd = [
                     "/usr/local/bin/gost",
-                    f"-L=tcp://0.0.0.0:{local_port}/{forward_host}:{forward_port}"
+                    f"-L=tcp://0.0.0.0:{local_port}/{target_addr}"
                 ]
             elif tunnel_type == "udp":
-                if ":" in forward_to:
-                    forward_host, forward_port = forward_to.rsplit(":", 1)
-                else:
-                    forward_host = forward_to
-                    forward_port = "8080"
                 cmd = [
                     "/usr/local/bin/gost",
-                    f"-L=udp://0.0.0.0:{local_port}/{forward_host}:{forward_port}"
+                    f"-L=udp://0.0.0.0:{local_port}/{target_addr}"
                 ]
             elif tunnel_type == "ws":
-                if ":" in forward_to:
-                    forward_host, forward_port = forward_to.rsplit(":", 1)
-                else:
-                    forward_host = forward_to
-                    forward_port = "8080"
                 import socket
                 try:
                     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -73,27 +68,17 @@ class GostForwarder:
                     bind_ip = "0.0.0.0"
                 cmd = [
                     "/usr/local/bin/gost",
-                    f"-L=ws://{bind_ip}:{local_port}/tcp://{forward_host}:{forward_port}"
+                    f"-L=ws://{bind_ip}:{local_port}/tcp://{target_addr}"
                 ]
             elif tunnel_type == "grpc":
-                if ":" in forward_to:
-                    forward_host, forward_port = forward_to.rsplit(":", 1)
-                else:
-                    forward_host = forward_to
-                    forward_port = "8080"
                 cmd = [
                     "/usr/local/bin/gost",
-                    f"-L=grpc://0.0.0.0:{local_port}/{forward_host}:{forward_port}"
+                    f"-L=grpc://0.0.0.0:{local_port}/{target_addr}"
                 ]
             elif tunnel_type == "tcpmux":
-                if ":" in forward_to:
-                    forward_host, forward_port = forward_to.rsplit(":", 1)
-                else:
-                    forward_host = forward_to
-                    forward_port = "8080"
                 cmd = [
                     "/usr/local/bin/gost",
-                    f"-L=tcpmux://0.0.0.0:{local_port}/{forward_host}:{forward_port}"
+                    f"-L=tcpmux://0.0.0.0:{local_port}/{target_addr}"
                 ]
             else:
                 raise ValueError(f"Unsupported tunnel type: {tunnel_type}")

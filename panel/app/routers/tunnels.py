@@ -122,16 +122,17 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
             token = db_tunnel.spec.get("token")
             proxy_port = db_tunnel.spec.get("remote_port") or db_tunnel.spec.get("listen_port")
             
-            if remote_addr and ":" in remote_addr:
-                rathole_port = remote_addr.split(":")[1]
+            if remote_addr:
+                from app.utils import parse_address_port
+                _, rathole_port = parse_address_port(remote_addr)
                 try:
-                    if int(rathole_port) == 8000:
+                    if rathole_port and int(rathole_port) == 8000:
                         db_tunnel.status = "error"
                         db_tunnel.error_message = "Rathole server cannot use port 8000 (panel API port). Use a different port like 23333."
                         await db.commit()
                         await db.refresh(db_tunnel)
                         return db_tunnel
-                except ValueError:
+                except (ValueError, TypeError):
                     pass
             
             if remote_addr and token and proxy_port and hasattr(request.app.state, 'rathole_server_manager'):
@@ -235,9 +236,10 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 forward_to = db_tunnel.spec.get("forward_to")
                 
                 if not forward_to:
+                    from app.utils import format_address_port
                     remote_ip = db_tunnel.spec.get("remote_ip", "127.0.0.1")
                     remote_port = db_tunnel.spec.get("remote_port", 8080)
-                    forward_to = f"{remote_ip}:{remote_port}"
+                    forward_to = format_address_port(remote_ip, remote_port)
                 
                 panel_port = listen_port or db_tunnel.spec.get("remote_port")
                 
@@ -360,9 +362,10 @@ async def update_tunnel(
                 forward_to = tunnel.spec.get("forward_to")
                 
                 if not forward_to:
+                    from app.utils import format_address_port
                     remote_ip = tunnel.spec.get("remote_ip", "127.0.0.1")
                     remote_port = tunnel.spec.get("remote_port", 8080)
-                    forward_to = f"{remote_ip}:{remote_port}"
+                    forward_to = format_address_port(remote_ip, remote_port)
                 
                 panel_port = listen_port or tunnel.spec.get("remote_port")
                 

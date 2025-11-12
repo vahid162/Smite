@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
+from app.utils import parse_address_port, format_address_port
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,10 +33,14 @@ class RatholeServerManager:
             True if server started successfully, False otherwise
         """
         try:
-            if ":" in remote_addr:
-                bind_addr = f"0.0.0.0:{remote_addr.split(':')[1]}"
-            else:
-                raise ValueError(f"Invalid remote_addr format: {remote_addr}")
+            # Parse remote_addr to extract port (handles IPv4, IPv6, and hostnames)
+            _, port = parse_address_port(remote_addr)
+            if port is None:
+                raise ValueError(f"Invalid remote_addr format: {remote_addr} (port required)")
+            
+            # Rathole bind_addr format: "0.0.0.0:port" for IPv4 or "[::]:port" for IPv6 dual-stack
+            # We use IPv4 bind for compatibility, but the port will work for both
+            bind_addr = f"0.0.0.0:{port}"
             
             if tunnel_id in self.active_servers:
                 logger.warning(f"Rathole server for tunnel {tunnel_id} already exists, stopping it first")
@@ -117,13 +123,15 @@ bind_addr = "0.0.0.0:{proxy_port}"
             
             try:
                 import socket
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(1)
-                port = int(bind_addr.split(':')[1])
-                result = sock.connect_ex(('127.0.0.1', port))
-                sock.close()
-                if result != 0:
-                    logger.warning(f"Rathole server port {port} not listening after start, but process is running. PID: {proc.pid}")
+                # Extract port from bind_addr
+                _, port = parse_address_port(bind_addr)
+                if port:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(1)
+                    result = sock.connect_ex(('127.0.0.1', port))
+                    sock.close()
+                    if result != 0:
+                        logger.warning(f"Rathole server port {port} not listening after start, but process is running. PID: {proc.pid}")
             except Exception as e:
                 logger.warning(f"Could not verify rathole server port is listening: {e}")
             

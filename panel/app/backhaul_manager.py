@@ -226,7 +226,9 @@ class BackhaulManager:
             target_port = spec.get("target_port") or listen_port
             if target_port is None:
                 return []
-            target_addr = f"{target_host}:{target_port}"
+            # Use format_address_port to properly handle IPv6 addresses
+            from app.utils import format_address_port
+            target_addr = format_address_port(target_host, target_port)
         listen_ip = spec.get("listen_ip", spec.get("public_ip", "0.0.0.0"))
 
         if listen_port is None:

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Trash2, Edit2 } from 'lucide-react'
 import api from '../api/client'
+import { parseAddressPort, formatAddressPort } from '../utils/addressUtils'
 
 interface Tunnel {
   id: string
@@ -331,7 +332,7 @@ const Tunnels = () => {
                 <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Forward To</span>
                   <span className="text-sm font-medium text-gray-900 dark:text-white break-all ml-2">
-                    {tunnel.spec.forward_to || `${tunnel.spec.remote_ip}:${tunnel.spec.remote_port}`}
+                    {tunnel.spec.forward_to || formatAddressPort(tunnel.spec.remote_ip, tunnel.spec.remote_port)}
                   </span>
                 </div>
               )}
@@ -400,15 +401,22 @@ interface EditTunnelModalProps {
 const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) => {
   // Extract remote_ip and remote_port from spec (Shifter pattern)
   // Fallback to parsing forward_to for backward compatibility
-  const remoteIp = tunnel.spec?.remote_ip || (tunnel.spec?.forward_to ? tunnel.spec.forward_to.split(':')[0] : '127.0.0.1')
-  const remotePort = tunnel.spec?.remote_port || (tunnel.spec?.forward_to ? parseInt(tunnel.spec.forward_to.split(':')[1]) || 8080 : 8080)
+  const forwardToParsed = tunnel.spec?.forward_to ? parseAddressPort(tunnel.spec.forward_to) : null
+  const remoteIp = tunnel.spec?.remote_ip || forwardToParsed?.host || '127.0.0.1'
+  const remotePort = tunnel.spec?.remote_port || forwardToParsed?.port || 8080
   
   const [formData, setFormData] = useState({
     name: tunnel.name,
     port: tunnel.spec?.listen_port || tunnel.spec?.remote_port || 8080,
     remote_ip: remoteIp,
-    rathole_remote_addr: tunnel.spec?.remote_addr ? (tunnel.spec.remote_addr.includes(':') ? tunnel.spec.remote_addr.split(':')[1] : tunnel.spec.remote_addr) : '',
-    rathole_local_port: tunnel.spec?.local_addr ? tunnel.spec.local_addr.split(':')[1] : '',
+    rathole_remote_addr: tunnel.spec?.remote_addr ? (() => {
+      const parsed = parseAddressPort(tunnel.spec.remote_addr)
+      return parsed.port?.toString() || ''
+    })() : '',
+    rathole_local_port: tunnel.spec?.local_addr ? (() => {
+      const parsed = parseAddressPort(tunnel.spec.local_addr)
+      return parsed.port?.toString() || ''
+    })() : '',
   })
   const parsedBackhaul = parseBackhaulSpec(tunnel.spec, tunnel.type)
   const [backhaulState, setBackhaulState] = useState<BackhaulFormState>(parsedBackhaul.state)
@@ -443,7 +451,7 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
         updatedSpec.remote_port = port
         updatedSpec.listen_port = port
         // Also set forward_to for backward compatibility
-        updatedSpec.forward_to = `${remoteIp}:${port}`
+        updatedSpec.forward_to = formatAddressPort(remoteIp, port)
       } else if (tunnel.core === 'backhaul') {
         updatedSpec = buildBackhaulSpec(backhaulState, backhaulAdvanced, tunnel.type as BackhaulTransport)
       }
@@ -489,10 +497,10 @@ const EditTunnelModal = ({ tunnel, onClose, onSuccess }: EditTunnelModalProps) =
                     setFormData({ ...formData, remote_ip: e.target.value || '127.0.0.1' })
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  placeholder="127.0.0.1"
+                  placeholder="127.0.0.1 or [2001:db8::1]"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Target server IP address
+                  Target server IP address (IPv4 or IPv6)
                 </p>
               </div>
               <div>
@@ -655,7 +663,7 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
         spec.remote_port = port
         spec.listen_port = port
         // Also set forward_to for backward compatibility
-        spec.forward_to = `${remoteIp}:${port}`
+        spec.forward_to = formatAddressPort(remoteIp, port)
       }
       
       // For Rathole, add required fields
@@ -844,10 +852,10 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
                     setFormData({ ...formData, remote_ip: e.target.value || '127.0.0.1' })
                   }
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                  placeholder="127.0.0.1"
+                  placeholder="127.0.0.1 or [2001:db8::1]"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Target server IP address
+                  Target server IP address (IPv4 or IPv6)
                 </p>
               </div>
               <div>
@@ -1469,7 +1477,7 @@ function BackhaulAdvancedDrawer({
               value={state.customPorts}
               onChange={(e) => onChange({ ...state, customPorts: e.target.value })}
               className="w-full min-h-[120px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-800 dark:text-white"
-              placeholder={`One entry per line. Examples:\n443\n443=127.0.0.1:8080\n2000-2100=127.0.0.1:22`}
+              placeholder={`One entry per line. Examples:\n443\n443=127.0.0.1:8080\n443=[2001:db8::1]:8080\n2000-2100=127.0.0.1:22`}
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               Format matches Backhaul ports syntax. Leave empty to use the single public port above.
@@ -1627,14 +1635,15 @@ function parseBackhaulSpec(spec: Record<string, any>, currentType: string): {
 
   if (spec.target_host) {
     state.target_host = String(spec.target_host)
-  } else if (typeof spec.target_addr === 'string' && spec.target_addr.includes(':')) {
-    state.target_host = spec.target_addr.split(':')[0]
+  } else if (typeof spec.target_addr === 'string') {
+    const parsed = parseAddressPort(spec.target_addr)
+    state.target_host = parsed.host
   }
 
   const targetPortCandidate =
     spec.target_port ??
-    (typeof spec.target_addr === 'string' && spec.target_addr.includes(':')
-      ? spec.target_addr.split(':')[1]
+    (typeof spec.target_addr === 'string'
+      ? parseAddressPort(spec.target_addr).port
       : undefined)
   if (targetPortCandidate) {
     state.target_port = String(targetPortCandidate)
