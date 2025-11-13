@@ -240,3 +240,131 @@ def get_traffic_bytes(tunnel_id: str, port: int, is_ipv6: bool = False) -> int:
         logger.error(f"Unexpected error reading iptables for tunnel {tunnel_id}: {e}", exc_info=True)
         return 0
 
+
+def add_tracking_rule_for_remote(tunnel_id: str, remote_host: str, remote_port: int, is_ipv6: bool = False):
+    """
+    Add iptables rule to track traffic to a remote address (for Backhaul client)
+    Tracks both INPUT (responses) and OUTPUT (requests) traffic
+    """
+    ensure_chain_exists()
+    
+    rule_comment = f"smite-{tunnel_id}"
+    cmd = is_ipv6 and _run_ip6tables or _run_iptables
+    
+    try:
+        # Check if rule already exists
+        result = cmd(["-L", CHAIN_NAME, "-n", "-v", "--line-numbers"], check=False)
+        if rule_comment in result.stdout:
+            logger.debug(f"Tracking rule for tunnel {tunnel_id} remote {remote_host}:{remote_port} already exists")
+            return
+        
+        # Add TCP OUTPUT rule (traffic going TO remote address)
+        cmd([
+            "-A", CHAIN_NAME,
+            "-p", "tcp",
+            "-d", remote_host,
+            "--dport", str(remote_port),
+            "-m", "comment", "--comment", f"{rule_comment}-tcp-out",
+            "-j", "ACCEPT"
+        ])
+        
+        # Add TCP INPUT rule (traffic coming FROM remote address)
+        cmd([
+            "-A", CHAIN_NAME,
+            "-p", "tcp",
+            "-s", remote_host,
+            "--sport", str(remote_port),
+            "-m", "comment", "--comment", f"{rule_comment}-tcp-in",
+            "-j", "ACCEPT"
+        ])
+        
+        # Add UDP OUTPUT rule
+        cmd([
+            "-A", CHAIN_NAME,
+            "-p", "udp",
+            "-d", remote_host,
+            "--dport", str(remote_port),
+            "-m", "comment", "--comment", f"{rule_comment}-udp-out",
+            "-j", "ACCEPT"
+        ])
+        
+        # Add UDP INPUT rule
+        cmd([
+            "-A", CHAIN_NAME,
+            "-p", "udp",
+            "-s", remote_host,
+            "--sport", str(remote_port),
+            "-m", "comment", "--comment", f"{rule_comment}-udp-in",
+            "-j", "ACCEPT"
+        ])
+        
+        logger.info(f"Added iptables tracking rules for tunnel {tunnel_id} to {remote_host}:{remote_port} (IPv6={is_ipv6})")
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to add tracking rule for tunnel {tunnel_id}: {e}")
+
+
+def remove_tracking_rule_for_remote(tunnel_id: str, remote_host: str, remote_port: int, is_ipv6: bool = False):
+    """Remove iptables tracking rule for remote address"""
+    rule_comment = f"smite-{tunnel_id}"
+    cmd = is_ipv6 and _run_ip6tables or _run_iptables
+    
+    try:
+        # Find and delete rules by comment
+        result = cmd(["-L", CHAIN_NAME, "-n", "-v", "--line-numbers"], check=False)
+        lines = result.stdout.split('\n')
+        
+        # Get line numbers of rules with this comment
+        line_nums = []
+        for i, line in enumerate(lines, 1):
+            if rule_comment in line:
+                # Extract line number (first field)
+                match = re.match(r'^\s*(\d+)', line)
+                if match:
+                    line_nums.append(int(match.group(1)))
+        
+        # Delete in reverse order to maintain line numbers
+        for line_num in sorted(line_nums, reverse=True):
+            cmd(["-D", CHAIN_NAME, str(line_num)], check=False)
+        
+        if line_nums:
+            logger.info(f"Removed iptables tracking rule for tunnel {tunnel_id} remote {remote_host}:{remote_port} (IPv6={is_ipv6})")
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to remove tracking rule for tunnel {tunnel_id}: {e}")
+
+
+def get_traffic_bytes_for_remote(tunnel_id: str, remote_host: str, remote_port: int, is_ipv6: bool = False) -> int:
+    """Get total bytes for a tunnel tracked by remote address"""
+    rule_comment = f"smite-{tunnel_id}"
+    cmd = is_ipv6 and _run_ip6tables or _run_iptables
+    
+    try:
+        result = cmd(["-L", CHAIN_NAME, "-n", "-v", "-x"], check=False)
+        total_bytes = 0
+        found_rules = 0
+        
+        # Sum bytes from all rules matching our comment
+        for line in result.stdout.split('\n'):
+            if rule_comment in line:
+                found_rules += 1
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        bytes_val = int(parts[1])
+                        total_bytes += bytes_val
+                        logger.debug(f"Found rule for {tunnel_id}: {bytes_val} bytes")
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Failed to parse bytes from line: {line}: {e}")
+        
+        if found_rules == 0:
+            logger.warning(f"No iptables rules found for tunnel {tunnel_id} (comment: {rule_comment})")
+        else:
+            logger.debug(f"Tunnel {tunnel_id}: Found {found_rules} rules, total {total_bytes} bytes")
+        
+        return total_bytes
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to read iptables counters for tunnel {tunnel_id}: {e}")
+        return 0
+    except Exception as e:
+        logger.error(f"Unexpected error reading iptables for tunnel {tunnel_id}: {e}", exc_info=True)
+        return 0
+

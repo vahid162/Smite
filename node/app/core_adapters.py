@@ -319,9 +319,37 @@ class BackhaulAdapter:
         self.processes[tunnel_id] = proc
         self.log_handles[tunnel_id] = log_fh
         self.usage_tracking.setdefault(tunnel_id, 0.0)
+        
+        # Store remote address for iptables tracking (Backhaul is client, track by remote address)
+        if remote_addr:
+            # Parse remote_addr to extract host and port
+            host, port, is_ipv6 = parse_address_port(remote_addr)
+            if host and port:
+                self.tunnel_ports[tunnel_id] = (host, port, is_ipv6, True)  # True = track by remote address
+                # Add iptables tracking rule for outbound connections to remote address
+                try:
+                    add_tracking_rule_for_remote(tunnel_id, host, port, is_ipv6)
+                    import logging
+                    logging.getLogger(__name__).info(f"Added iptables tracking for Backhaul tunnel {tunnel_id} to {host}:{port} (IPv6={is_ipv6})")
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).error(f"Failed to add iptables tracking for Backhaul tunnel {tunnel_id}: {e}", exc_info=True)
 
     def remove(self, tunnel_id: str):
         config_path = self.config_dir / f"{tunnel_id}.toml"
+        
+        # Remove iptables tracking rule for remote address
+        if tunnel_id in self.tunnel_ports:
+            port_info = self.tunnel_ports[tunnel_id]
+            if len(port_info) == 4 and port_info[3]:  # Track by remote address
+                host, port, is_ipv6, _ = port_info
+                try:
+                    remove_tracking_rule_for_remote(tunnel_id, host, port, is_ipv6)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Failed to remove iptables tracking for tunnel {tunnel_id}: {e}")
+            del self.tunnel_ports[tunnel_id]
+        
         if tunnel_id in self.processes:
             proc = self.processes[tunnel_id]
             try:
@@ -357,10 +385,25 @@ class BackhaulAdapter:
         }
 
     def get_usage_mb(self, tunnel_id: str) -> float:
-        """Get usage in MB - tracks from process I/O (Backhaul is client, no local port)"""
+        """Get usage in MB - tracks from process I/O and iptables (by remote address)"""
+        import logging
+        logger = logging.getLogger(__name__)
         total_bytes = 0.0
         
-        # Track from process I/O (Backhaul is a client connecting outbound, no local listen port)
+        # Method 1: Track from iptables counters (by remote address)
+        if tunnel_id in self.tunnel_ports:
+            port_info = self.tunnel_ports[tunnel_id]
+            if len(port_info) == 4 and port_info[3]:  # Track by remote address
+                host, port, is_ipv6, _ = port_info
+                try:
+                    iptables_bytes = get_traffic_bytes_for_remote(tunnel_id, host, port, is_ipv6)
+                    if iptables_bytes > 0:
+                        logger.debug(f"Backhaul tunnel {tunnel_id}: iptables bytes = {iptables_bytes}")
+                    total_bytes = max(total_bytes, iptables_bytes)
+                except Exception as e:
+                    logger.warning(f"Failed to get iptables bytes for Backhaul tunnel {tunnel_id}: {e}")
+        
+        # Method 2: Track from process I/O (fallback)
         if tunnel_id in self.processes:
             proc = self.processes[tunnel_id]
             try:
