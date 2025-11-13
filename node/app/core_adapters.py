@@ -10,7 +10,10 @@ from .iptables_tracker import (
     add_tracking_rule,
     remove_tracking_rule,
     get_traffic_bytes,
-    parse_address_port
+    parse_address_port,
+    add_tracking_rule_for_remote,
+    remove_tracking_rule_for_remote,
+    get_traffic_bytes_for_remote
 )
 
 
