@@ -40,6 +40,8 @@ class TunnelResponse(BaseModel):
     status: str
     error_message: str | None = None
     revision: int
+    used_mb: float = 0.0
+    quota_mb: float = 0.0
     created_at: datetime
     updated_at: datetime
     

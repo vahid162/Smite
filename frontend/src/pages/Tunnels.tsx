@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Trash2, Edit2 } from 'lucide-react'
 import api from '../api/client'
 import { parseAddressPort, formatAddressPort } from '../utils/addressUtils'
+import { formatTraffic, formatTrafficRate } from '../utils/formatTraffic'
 
 interface Tunnel {
   id: string
@@ -13,6 +14,8 @@ interface Tunnel {
   status: string
   error_message?: string | null
   revision: number
+  used_mb?: number
+  quota_mb?: number
   created_at: string
   updated_at: string
 }
@@ -358,6 +361,42 @@ const Tunnels = () => {
                     )
                   })()}
                 </>
+              )}
+            </div>
+
+            {/* Traffic Stats */}
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Traffic Usage</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {formatTraffic(tunnel.used_mb || 0)}
+                </span>
+              </div>
+              {tunnel.quota_mb && tunnel.quota_mb > 0 ? (
+                <>
+                  <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    <span>Quota: {formatTraffic(tunnel.quota_mb)}</span>
+                    <span>
+                      {((tunnel.used_mb || 0) / tunnel.quota_mb * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-500 ease-out ${
+                        (tunnel.used_mb || 0) / tunnel.quota_mb >= 0.9
+                          ? 'bg-gradient-to-r from-red-500 to-red-600'
+                          : (tunnel.used_mb || 0) / tunnel.quota_mb >= 0.7
+                          ? 'bg-gradient-to-r from-orange-500 to-orange-600'
+                          : 'bg-gradient-to-r from-blue-500 to-blue-600'
+                      }`}
+                      style={{ 
+                        width: `${Math.min(((tunnel.used_mb || 0) / tunnel.quota_mb * 100), 100)}%` 
+                      }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400">No quota set</p>
               )}
             </div>
 
