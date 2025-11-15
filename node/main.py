@@ -46,15 +46,25 @@ async def usage_reporting_task(app: FastAPI):
                         incremental_bytes = int(incremental_mb * 1024 * 1024)
                         
                         if incremental_bytes > 0:
+                            logger.debug(f"Reporting usage for tunnel {tunnel_id}: {incremental_mb:.2f} MB (total: {usage_mb:.2f} MB)")
                             await h2_client.push_usage_to_panel(
                                 tunnel_id=tunnel_id,
                                 node_id=h2_client.node_id,
                                 bytes_used=incremental_bytes
                             )
                     elif previous_mb == 0.0 and usage_mb > 0:
+                        # First report - send initial usage
                         adapter_manager.usage_tracking[tunnel_id] = usage_mb
+                        initial_bytes = int(usage_mb * 1024 * 1024)
+                        if initial_bytes > 0:
+                            logger.debug(f"Reporting initial usage for tunnel {tunnel_id}: {usage_mb:.2f} MB")
+                            await h2_client.push_usage_to_panel(
+                                tunnel_id=tunnel_id,
+                                node_id=h2_client.node_id,
+                                bytes_used=initial_bytes
+                            )
                 except Exception as e:
-                    print(f"Warning: Failed to report usage for tunnel {tunnel_id}: {e}")
+                    logger.warning(f"Failed to report usage for tunnel {tunnel_id}: {e}", exc_info=True)
         except asyncio.CancelledError:
             break
         except Exception as e:

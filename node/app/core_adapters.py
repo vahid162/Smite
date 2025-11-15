@@ -189,10 +189,12 @@ local_addr = "{local_addr}"
                 # Calculate actual usage as difference from baseline
                 iptables_bytes = max(0, current_iptables_bytes - baseline)
                 if iptables_bytes > 0:
-                    logger.debug(f"Tunnel {tunnel_id}: iptables current={current_iptables_bytes}, baseline={baseline}, usage={iptables_bytes} bytes")
+                    logger.info(f"Tunnel {tunnel_id} (port {port}): iptables current={current_iptables_bytes} bytes, baseline={baseline} bytes, usage={iptables_bytes} bytes ({iptables_bytes/(1024*1024):.2f} MB)")
                 total_bytes = iptables_bytes
             except Exception as e:
-                logger.warning(f"Failed to get iptables bytes for tunnel {tunnel_id}: {e}")
+                logger.warning(f"Failed to get iptables bytes for tunnel {tunnel_id}: {e}", exc_info=True)
+        else:
+            logger.warning(f"Tunnel {tunnel_id} not found in tunnel_ports - no tracking configured")
         
         # Convert to MB and return directly (panel handles cumulative tracking)
         return total_bytes / (1024 * 1024)
@@ -419,10 +421,12 @@ class BackhaulAdapter:
                     # Calculate actual usage as difference from baseline
                     iptables_bytes = max(0, current_iptables_bytes - baseline)
                     if iptables_bytes > 0:
-                        logger.debug(f"Backhaul tunnel {tunnel_id}: iptables current={current_iptables_bytes}, baseline={baseline}, usage={iptables_bytes} bytes")
+                        logger.info(f"Backhaul tunnel {tunnel_id} ({host}:{port}): iptables current={current_iptables_bytes} bytes, baseline={baseline} bytes, usage={iptables_bytes} bytes ({iptables_bytes/(1024*1024):.2f} MB)")
                     total_bytes = iptables_bytes
                 except Exception as e:
-                    logger.warning(f"Failed to get iptables bytes for Backhaul tunnel {tunnel_id}: {e}")
+                    logger.warning(f"Failed to get iptables bytes for Backhaul tunnel {tunnel_id}: {e}", exc_info=True)
+        else:
+            logger.warning(f"Backhaul tunnel {tunnel_id} not found in tunnel_ports - no tracking configured")
         
         # Convert to MB and return directly (panel handles cumulative tracking)
         return total_bytes / (1024 * 1024)
