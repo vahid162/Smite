@@ -201,9 +201,11 @@ async def _restore_chisel_servers():
                 
                 try:
                     use_ipv6 = tunnel.spec.get("use_ipv6", False)
+                    # Use listen_port + 10000 for server control port to avoid conflict with reverse tunnel endpoint
+                    server_control_port = int(listen_port) + 10000
                     chisel_server_manager.start_server(
                         tunnel_id=tunnel.id,
-                        server_port=int(listen_port),
+                        server_port=server_control_port,
                         auth=auth,
                         fingerprint=fingerprint,
                         use_ipv6=bool(use_ipv6)
@@ -253,6 +255,10 @@ async def _restore_node_tunnels():
                         listen_port = spec_for_node.get("listen_port") or spec_for_node.get("remote_port") or spec_for_node.get("server_port")
                         use_ipv6 = spec_for_node.get("use_ipv6", False)
                         if listen_port:
+                            # Use listen_port + 10000 for server control port to avoid conflict
+                            server_control_port = int(listen_port) + 10000
+                            reverse_port = int(listen_port)  # This is where clients connect
+                            
                             # Get panel host - prioritize spec.panel_host (set by frontend)
                             panel_host = spec_for_node.get("panel_host")
                             
@@ -288,15 +294,16 @@ async def _restore_node_tunnels():
                             if use_ipv6:
                                 formatted_host = format_address_port(panel_host, None)
                                 if "[" in formatted_host:
-                                    server_url = f"http://{formatted_host}:{listen_port}"
+                                    server_url = f"http://{formatted_host}:{server_control_port}"
                                 else:
-                                    server_url = f"http://[::1]:{listen_port}"
+                                    server_url = f"http://[::1]:{server_control_port}"
                             else:
-                                server_url = f"http://{panel_host}:{listen_port}"
+                                server_url = f"http://{panel_host}:{server_control_port}"
                             
                             spec_for_node["server_url"] = server_url
-                            spec_for_node["remote_port"] = int(listen_port)
-                            logger.info(f"Chisel tunnel {tunnel.id}: server_url={server_url}, listen_port={listen_port}, use_ipv6={use_ipv6}, panel_host={panel_host}")
+                            spec_for_node["reverse_port"] = reverse_port
+                            spec_for_node["remote_port"] = int(listen_port)  # Keep for backward compatibility
+                            logger.info(f"Chisel tunnel {tunnel.id}: server_url={server_url}, server_control_port={server_control_port}, reverse_port={reverse_port}, use_ipv6={use_ipv6}, panel_host={panel_host}")
                     
                     # Ensure node has api_address
                     if not node.node_metadata.get("api_address"):
