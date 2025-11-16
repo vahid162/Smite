@@ -13,6 +13,7 @@ def get_compose_file():
     """Get docker-compose file path"""
     possible_roots = [
         Path("/opt/smite-node"),
+        Path("/usr/local/node"),  # Legacy installation path
         Path.cwd(),
         Path(__file__).parent.parent / "node",
     ]
@@ -30,6 +31,7 @@ def get_env_file():
     """Get .env file path"""
     possible_roots = [
         Path("/opt/smite-node"),
+        Path("/usr/local/node"),  # Legacy installation path
         Path.cwd(),
         Path(__file__).parent.parent / "node",
     ]
@@ -50,6 +52,7 @@ def run_docker_compose(args, capture_output=False):
         print(f"Error: docker-compose.yml not found at {compose_file}")
         print(f"\nPlease ensure you're in the node directory or docker-compose.yml exists at:")
         print(f"  - /opt/smite-node/docker-compose.yml")
+        print(f"  - /usr/local/node/docker-compose.yml")
         print(f"  - {Path.cwd()}/docker-compose.yml")
         sys.exit(1)
     
