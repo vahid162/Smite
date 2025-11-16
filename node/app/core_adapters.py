@@ -402,13 +402,18 @@ class ChiselAdapter:
     def apply(self, tunnel_id: str, spec: Dict[str, Any]):
         """Apply Chisel tunnel"""
         server_url = spec.get('server_url', '').strip()
-        local_addr = spec.get('local_addr', '127.0.0.1:8080')
-        remote_port = spec.get('remote_port') or spec.get('listen_port')
+        remote_port = spec.get('remote_port') or spec.get('listen_port') or spec.get('server_port')
+        local_addr = spec.get('local_addr')
         
         if not server_url:
             raise ValueError("Chisel requires 'server_url' (panel server address) in spec")
         if not remote_port:
             raise ValueError("Chisel requires 'remote_port' or 'listen_port' in spec")
+        
+        # If local_addr is not provided, default to same port as remote_port on localhost
+        if not local_addr:
+            local_addr = f"127.0.0.1:{remote_port}"
+            logger.warning(f"Chisel tunnel {tunnel_id}: local_addr not specified, defaulting to {local_addr}")
         
         # Parse local_addr to get host and port
         host, port, is_ipv6 = parse_address_port(local_addr)
@@ -417,6 +422,7 @@ class ChiselAdapter:
         
         # Chisel reverse tunnel format: R:<remote_port>:<local_host>:<local_port>
         # Example: R:8080:127.0.0.1:8080
+        # This means: forward connections to remote_port on server to local_host:local_port on node
         reverse_spec = f"R:{remote_port}:{host}:{port}"
         
         # Build chisel client command

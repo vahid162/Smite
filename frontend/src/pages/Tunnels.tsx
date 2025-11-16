@@ -328,6 +328,14 @@ const Tunnels = () => {
                   </div>
                 </>
               )}
+              {tunnel.core === 'chisel' && (
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Local Port</span>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {tunnel.spec?.local_addr ? tunnel.spec.local_addr.split(':')[1] : 'N/A'}
+                  </span>
+                </div>
+              )}
               {tunnel.core === 'xray' && (tunnel.spec?.forward_to || (tunnel.spec?.remote_ip && tunnel.spec?.remote_port)) && (
                 <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700">
                   <span className="text-sm text-gray-500 dark:text-gray-400">Forward To</span>
@@ -693,8 +701,10 @@ const AddTunnelModal = ({ nodes, onClose, onSuccess }: AddTunnelModalProps) => {
         spec.listen_port = listenPort
         spec.remote_port = listenPort
         spec.server_port = listenPort  // Keep for backward compatibility
+        // Local port on node where the service listens (default to same as listen_port if not specified)
+        const localPort = parseInt(formData.rathole_local_port?.toString() || formData.port?.toString() || '8080')
         const localHost = formData.use_ipv6 ? '::1' : '127.0.0.1'
-        spec.local_addr = `${localHost}:${formData.rathole_local_port || '8080'}`
+        spec.local_addr = `${localHost}:${localPort}`
         // Set panel host (same as Rathole uses window.location.hostname)
         const panelHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
         spec.panel_host = panelHost
