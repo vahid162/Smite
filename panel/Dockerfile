@@ -119,5 +119,9 @@ COPY panel .
 
 EXPOSE 8000 443/tcp 443/udp
 
-# Use environment variable for port, default to 8000
-CMD sh -c "uvicorn main:app --host ${PANEL_HOST:-0.0.0.0} --port ${PANEL_PORT:-8000}"
+# Create startup script that uses environment variables (use single quotes to prevent build-time expansion)
+RUN echo '#!/bin/sh' > /app/start.sh && \
+    echo 'exec uvicorn main:app --host "${PANEL_HOST:-0.0.0.0}" --port "${PANEL_PORT:-8000}"' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+CMD ["/app/start.sh"]
