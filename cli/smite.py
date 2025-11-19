@@ -86,6 +86,8 @@ def run_docker_compose(args, capture_output=False):
     
     cmd = ["docker", "compose", "-f", str(compose_file)] + args
     result = subprocess.run(cmd, capture_output=capture_output, text=True)
+    if not capture_output and result.returncode != 0:
+        sys.exit(result.returncode)
     return result
 
 
@@ -681,7 +683,13 @@ def cmd_restart(args):
     print("Restarting panel...")
     run_docker_compose(["stop", "smite-panel"])
     run_docker_compose(["rm", "-f", "smite-panel"])
-    run_docker_compose(["up", "-d", "--no-deps", "--no-pull", "smite-panel"])
+    result = run_docker_compose(["up", "-d", "--no-deps", "--no-pull", "smite-panel"], capture_output=True)
+    if result.returncode != 0 and "--no-pull" in result.stderr:
+        run_docker_compose(["up", "-d", "--no-deps", "smite-panel"])
+    else:
+        if result.returncode != 0:
+            print(result.stderr)
+            sys.exit(result.returncode)
     print("Panel restarted. Tunnels are preserved.")
 
 

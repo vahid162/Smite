@@ -64,6 +64,8 @@ def run_docker_compose(args, capture_output=False):
         os.chdir(compose_dir)
         cmd = ["docker", "compose", "-f", str(compose_file)] + args
         result = subprocess.run(cmd, capture_output=capture_output, text=True, cwd=str(compose_dir))
+        if not capture_output and result.returncode != 0:
+            sys.exit(result.returncode)
         return result
     finally:
         os.chdir(original_cwd)
@@ -119,7 +121,13 @@ def cmd_restart(args):
     print("Restarting node...")
     run_docker_compose(["stop", "smite-node"])
     run_docker_compose(["rm", "-f", "smite-node"])
-    run_docker_compose(["up", "-d", "--no-deps", "--no-pull", "smite-node"])
+    result = run_docker_compose(["up", "-d", "--no-deps", "--no-pull", "smite-node"], capture_output=True)
+    if result.returncode != 0 and "--no-pull" in result.stderr:
+        run_docker_compose(["up", "-d", "--no-deps", "smite-node"])
+    else:
+        if result.returncode != 0:
+            print(result.stderr)
+            sys.exit(result.returncode)
     print("Node restarted. Tunnels will be restored by the panel.")
 
 
