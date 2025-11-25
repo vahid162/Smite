@@ -592,6 +592,7 @@ class FrpAdapter:
         # Create FRP client config file
         config_file = self.config_dir / f"frpc_{tunnel_id}.toml"
         with open(config_file, 'w') as f:
+            f.write("[common]\n")
             f.write(f'serverAddr = "{server_addr}"\n')
             f.write(f'serverPort = {server_port}\n')
             if token:

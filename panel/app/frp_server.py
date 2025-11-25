@@ -63,12 +63,14 @@ class FrpServerManager:
             # Create config file
             config_file = self.config_dir / f"frps_{tunnel_id}.toml"
             with open(config_file, 'w') as f:
+                f.write("[common]\n")
                 f.write(f"bindPort = {bind_port}\n")
                 if token:
                     f.write('auth.method = "token"\n')
                     f.write(f'auth.token = "{token}"\n')
                 # Disable dashboard
-                f.write('webServer.enable = false\n')
+                f.write("\n[webServer]\n")
+                f.write("enable = false\n")
             
             binary_path = self._resolve_binary_path()
             cmd = [

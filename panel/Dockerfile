@@ -111,6 +111,7 @@ ARG SMITE_VERSION=latest
 LABEL org.opencontainers.image.version="${SMITE_VERSION}"
 LABEL smite.version="${SMITE_VERSION}"
 ENV SMITE_VERSION="${SMITE_VERSION}"
+RUN echo "${SMITE_VERSION}" > /app/VERSION
 
 COPY --from=binaries /usr/local/bin/rathole /usr/local/bin/rathole
 COPY --from=binaries /usr/local/bin/gost /usr/local/bin/gost
