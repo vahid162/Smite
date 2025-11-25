@@ -595,7 +595,8 @@ class FrpAdapter:
             f.write(f'serverAddr = "{server_addr}"\n')
             f.write(f'serverPort = {server_port}\n')
             if token:
-                f.write(f'token = "{token}"\n')
+                f.write('auth.method = "token"\n')
+                f.write(f'auth.token = "{token}"\n')
             f.write('\n')
             f.write('[[proxies]]\n')
             f.write(f'name = "{tunnel_id}"\n')

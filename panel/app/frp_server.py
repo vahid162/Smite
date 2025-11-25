@@ -65,7 +65,8 @@ class FrpServerManager:
             with open(config_file, 'w') as f:
                 f.write(f"bindPort = {bind_port}\n")
                 if token:
-                    f.write(f'token = "{token}"\n')
+                    f.write('auth.method = "token"\n')
+                    f.write(f'auth.token = "{token}"\n')
                 # Disable dashboard
                 f.write('webServer.enable = false\n')
             
