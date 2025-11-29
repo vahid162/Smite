@@ -388,17 +388,27 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
                 if core == "backhaul":
                     pass
                 elif core == "rathole":
-                    remote_addr = tunnel.spec.get("remote_addr", "").split(":")[0] if ":" in tunnel.spec.get("remote_addr", "") else tunnel.spec.get("remote_addr", "")
-                    remote_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
+                    remote_addr = tunnel.spec.get("remote_addr")
                     token = tunnel.spec.get("token")
                     local_addr = tunnel.spec.get("local_addr", "127.0.0.1")
                     local_port = tunnel.spec.get("local_port")
                     
+                    if not remote_addr or not token:
+                        logger.warning(f"Rathole tunnel {tunnel.id}: Missing remote_addr or token, skipping reset")
+                        continue
+                    
+                    if local_port:
+                        if ":" in local_addr:
+                            local_addr_formatted = local_addr
+                        else:
+                            local_addr_formatted = f"{local_addr}:{local_port}"
+                    else:
+                        local_addr_formatted = local_addr
+                    
                     spec_for_node = {
-                        "remote_addr": f"{remote_addr}:{remote_port}",
+                        "remote_addr": remote_addr,
                         "token": token,
-                        "local_addr": local_addr,
-                        "local_port": local_port
+                        "local_addr": local_addr_formatted
                     }
                 elif core == "chisel":
                     listen_port = tunnel.spec.get("listen_port") or tunnel.spec.get("remote_port") or tunnel.spec.get("server_port")
