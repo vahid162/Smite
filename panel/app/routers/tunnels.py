@@ -143,25 +143,29 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
     
     if is_reverse_tunnel:
         # Try to get nodes from explicit IDs first
-        if tunnel.foreign_node_id:
-            result = await db.execute(select(Node).where(Node.id == tunnel.foreign_node_id))
+        # Handle both None and empty string
+        foreign_node_id_val = tunnel.foreign_node_id if tunnel.foreign_node_id and (not isinstance(tunnel.foreign_node_id, str) or tunnel.foreign_node_id.strip()) else None
+        if foreign_node_id_val:
+            result = await db.execute(select(Node).where(Node.id == foreign_node_id_val))
             foreign_node = result.scalar_one_or_none()
             if not foreign_node:
-                raise HTTPException(status_code=404, detail=f"Foreign node {tunnel.foreign_node_id} not found")
+                raise HTTPException(status_code=404, detail=f"Foreign node {foreign_node_id_val} not found")
             if foreign_node.node_metadata.get("role") != "foreign":
-                raise HTTPException(status_code=400, detail=f"Node {tunnel.foreign_node_id} is not a foreign node")
+                raise HTTPException(status_code=400, detail=f"Node {foreign_node_id_val} is not a foreign node")
         
-        if tunnel.iran_node_id:
-            result = await db.execute(select(Node).where(Node.id == tunnel.iran_node_id))
+        iran_node_id_val = tunnel.iran_node_id if tunnel.iran_node_id and (not isinstance(tunnel.iran_node_id, str) or tunnel.iran_node_id.strip()) else None
+        if iran_node_id_val:
+            result = await db.execute(select(Node).where(Node.id == iran_node_id_val))
             iran_node = result.scalar_one_or_none()
             if not iran_node:
-                raise HTTPException(status_code=404, detail=f"Iran node {tunnel.iran_node_id} not found")
+                raise HTTPException(status_code=404, detail=f"Iran node {iran_node_id_val} not found")
             if iran_node.node_metadata.get("role") != "iran":
-                raise HTTPException(status_code=400, detail=f"Node {tunnel.iran_node_id} is not an iran node")
+                raise HTTPException(status_code=400, detail=f"Node {iran_node_id_val} is not an iran node")
         
         # If only one node_id provided, try to infer the other
-        if tunnel.node_id and not (foreign_node and iran_node):
-            result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
+        node_id_val = tunnel.node_id if tunnel.node_id and (not isinstance(tunnel.node_id, str) or tunnel.node_id.strip()) else None
+        if node_id_val and not (foreign_node and iran_node):
+            result = await db.execute(select(Node).where(Node.id == node_id_val))
             provided_node = result.scalar_one_or_none()
             if not provided_node:
                 raise HTTPException(status_code=404, detail="Node not found")
@@ -192,19 +196,23 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
         # Use iran_node as the primary node_id for the tunnel record
         node = iran_node
     else:
-        # For non-reverse tunnels, use single node
+        # For non-reverse tunnels (xray/gost), nodes are optional
+        # If provided, they're stored but not used for tunnel operation
         node = None
-        if tunnel.node_id:
-            result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
+        if tunnel.node_id or tunnel.iran_node_id:
+            node_id_to_check = tunnel.iran_node_id or tunnel.node_id
+            result = await db.execute(select(Node).where(Node.id == node_id_to_check))
             node = result.scalar_one_or_none()
-            if not node:
-                raise HTTPException(status_code=404, detail="Node not found")
+            # Don't fail if node not found for xray tunnels - they work without nodes
+    
+    # Use iran_node_id if provided, otherwise use node_id, otherwise empty string
+    tunnel_node_id = tunnel.iran_node_id or tunnel.node_id or ""
     
     db_tunnel = Tunnel(
         name=tunnel.name,
         core=tunnel.core,
         type=tunnel.type,
-        node_id=tunnel.node_id or "",
+        node_id=tunnel_node_id,
         spec=tunnel.spec,
         status="pending"
     )

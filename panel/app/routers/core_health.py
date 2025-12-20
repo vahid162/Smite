@@ -287,7 +287,7 @@ async def manual_reset_core(core: str, request: Request, db: AsyncSession = Depe
 
 
 async def _reset_core(core: str, app_or_request, db: AsyncSession):
-    """Internal function to reset a core"""
+    """Internal function to reset a core - handles both foreign and iran nodes"""
     if hasattr(app_or_request, 'app'):
         app = app_or_request.app
     else:
@@ -296,223 +296,241 @@ async def _reset_core(core: str, app_or_request, db: AsyncSession):
     result = await db.execute(select(Tunnel).where(Tunnel.core == core, Tunnel.status == "active"))
     active_tunnels = result.scalars().all()
     
-    if core == "backhaul":
-        manager = getattr(app.state, "backhaul_manager", None)
-        if manager:
-            for tunnel in active_tunnels:
-                try:
-                    manager.stop_server(tunnel.id)
-                    await asyncio.sleep(0.5)
-                    manager.start_server(tunnel.id, tunnel.spec or {})
-                except Exception as e:
-                    logger.error(f"Error restarting backhaul server for tunnel {tunnel.id}: {e}")
-    elif core == "rathole":
-        manager = getattr(app.state, "rathole_server_manager", None)
-        if manager:
-            for tunnel in active_tunnels:
-                try:
-                    remote_addr = tunnel.spec.get("remote_addr")
-                    token = tunnel.spec.get("token")
-                    proxy_port = tunnel.spec.get("remote_port") or tunnel.spec.get("listen_port")
-                    if remote_addr and token and proxy_port:
-                        manager.stop_server(tunnel.id)
-                        await asyncio.sleep(0.5)
-                        manager.start_server(
-                            tunnel_id=tunnel.id,
-                            remote_addr=remote_addr,
-                            token=token,
-                            proxy_port=int(proxy_port)
-                        )
-                except Exception as e:
-                    logger.error(f"Error restarting rathole server for tunnel {tunnel.id}: {e}")
-    elif core == "chisel":
-        manager = getattr(app.state, "chisel_server_manager", None)
-        if manager:
-            for tunnel in active_tunnels:
-                try:
-                    listen_port = tunnel.spec.get("listen_port") or tunnel.spec.get("remote_port")
-                    server_port = tunnel.spec.get("control_port")
-                    if not server_port and listen_port:
-                        server_port = int(listen_port) + 10000
-                    elif not server_port:
-                        logger.warning(f"Chisel tunnel {tunnel.id}: Missing listen_port and control_port, skipping reset")
-                        continue
-                    auth = tunnel.spec.get("auth")
-                    fingerprint = tunnel.spec.get("fingerprint")
-                    use_ipv6 = tunnel.spec.get("use_ipv6", False)
-                    if server_port:
-                        manager.stop_server(tunnel.id)
-                        await asyncio.sleep(0.5)
-                        manager.start_server(
-                            tunnel_id=tunnel.id,
-                            server_port=int(server_port),
-                            auth=auth,
-                            fingerprint=fingerprint,
-                            use_ipv6=bool(use_ipv6)
-                        )
-                except Exception as e:
-                    logger.error(f"Error restarting chisel server for tunnel {tunnel.id}: {e}")
-    elif core == "frp":
-        manager = getattr(app.state, "frp_server_manager", None)
-        if manager:
-            for tunnel in active_tunnels:
-                try:
-                    bind_port = tunnel.spec.get("bind_port", 7000)
-                    token = tunnel.spec.get("token")
-                    if bind_port:
-                        manager.stop_server(tunnel.id)
-                        await asyncio.sleep(0.5)
-                        manager.start_server(
-                            tunnel_id=tunnel.id,
-                            bind_port=int(bind_port),
-                            token=token
-                        )
-                except Exception as e:
-                    logger.error(f"Error restarting FRP server for tunnel {tunnel.id}: {e}")
+    # Servers now run on foreign nodes, not on panel - skip panel-side server restart
+    # Panel-side managers are disabled but kept for backward compatibility
     
-    node_ids = set(t.node_id for t in active_tunnels if t.node_id)
     client = Hysteria2Client()
     
-    for node_id in node_ids:
-        node_result = await db.execute(select(Node).where(Node.id == node_id))
-        node = node_result.scalar_one_or_none()
-        if not node:
-            continue
-        
-        node_tunnels = [t for t in active_tunnels if t.node_id == node_id]
-        
-        for tunnel in node_tunnels:
-            try:
-                spec_for_node = tunnel.spec.copy()
+    # For each tunnel, find both foreign and iran nodes and restart appropriately
+    for tunnel in active_tunnels:
+        try:
+            # Find iran node from tunnel.node_id
+            iran_node = None
+            foreign_node = None
+            
+            if tunnel.node_id:
+                result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
+                iran_node = result.scalar_one_or_none()
+                if iran_node and iran_node.node_metadata.get("role") != "iran":
+                    foreign_node = iran_node
+                    iran_node = None
+            
+            # Find foreign node if not found
+            if not foreign_node:
+                result = await db.execute(select(Node).where(Node.node_metadata["role"].astext == "foreign"))
+                foreign_nodes = result.scalars().all()
+                if foreign_nodes:
+                    foreign_node = foreign_nodes[0]
+            
+            # Find iran node if not found
+            if not iran_node:
+                if tunnel.node_id:
+                    result = await db.execute(select(Node).where(Node.id == tunnel.node_id))
+                    iran_node = result.scalar_one_or_none()
+                if not iran_node:
+                    result = await db.execute(select(Node).where(Node.node_metadata["role"].astext == "iran"))
+                    iran_nodes = result.scalars().all()
+                    if iran_nodes:
+                        iran_node = iran_nodes[0]
+            
+            if not foreign_node or not iran_node:
+                logger.warning(f"Tunnel {tunnel.id}: Missing foreign or iran node, skipping reset")
+                continue
+            
+            # Prepare server config for foreign node and client config for iran node
+            server_spec = tunnel.spec.copy() if tunnel.spec else {}
+            server_spec["mode"] = "server"
+            
+            client_spec = tunnel.spec.copy() if tunnel.spec else {}
+            client_spec["mode"] = "client"
+            
+            # Prepare configs based on tunnel type (same logic as create_tunnel)
+            if core == "rathole":
+                transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
+                proxy_port = server_spec.get("remote_port") or server_spec.get("listen_port")
+                token = server_spec.get("token")
+                if not proxy_port or not token:
+                    logger.warning(f"Tunnel {tunnel.id}: Missing remote_port or token, skipping")
+                    continue
                 
-                if core == "backhaul":
-                    pass
-                elif core == "rathole":
-                    remote_addr = tunnel.spec.get("remote_addr")
-                    token = tunnel.spec.get("token")
-                    local_addr = tunnel.spec.get("local_addr", "127.0.0.1")
-                    local_port = tunnel.spec.get("local_port")
-                    
-                    if not remote_addr or not token:
-                        logger.warning(f"Rathole tunnel {tunnel.id}: Missing remote_addr or token, skipping reset")
-                        continue
-                    
-                    if local_port:
-                        if ":" in local_addr:
-                            local_addr_formatted = local_addr
-                        else:
-                            local_addr_formatted = f"{local_addr}:{local_port}"
-                    else:
-                        local_addr_formatted = local_addr
-                    
-                    spec_for_node = {
-                        "remote_addr": remote_addr,
-                        "token": token,
-                        "local_addr": local_addr_formatted
-                    }
-                elif core == "chisel":
-                    listen_port = tunnel.spec.get("listen_port") or tunnel.spec.get("remote_port") or tunnel.spec.get("server_port")
-                    use_ipv6 = tunnel.spec.get("use_ipv6", False)
-                    if listen_port:
-                        server_control_port = tunnel.spec.get("control_port")
-                        if server_control_port:
-                            server_control_port = int(server_control_port)
-                        else:
-                            server_control_port = int(listen_port) + 10000
-                        reverse_port = int(listen_port)
-                        
-                        panel_host = tunnel.spec.get("panel_host")
-                        if not panel_host:
-                            panel_address = node.node_metadata.get("panel_address", "")
-                            if panel_address:
-                                if "://" in panel_address:
-                                    panel_address = panel_address.split("://", 1)[1]
-                                if ":" in panel_address:
-                                    panel_host = panel_address.split(":")[0]
-                                else:
-                                    panel_host = panel_address
-                        
-                        if not panel_host or panel_host in ["localhost", "127.0.0.1", "::1"]:
-                            import os
-                            panel_public_ip = os.getenv("PANEL_PUBLIC_IP") or os.getenv("PANEL_IP")
-                            if panel_public_ip and panel_public_ip not in ["localhost", "127.0.0.1", "::1", "0.0.0.0", ""]:
-                                panel_host = panel_public_ip
-                            else:
-                                panel_host = "127.0.0.1"
-                        
-                        from app.utils import is_valid_ipv6_address
-                        if is_valid_ipv6_address(panel_host):
-                            server_url = f"http://[{panel_host}]:{server_control_port}"
-                        else:
-                            server_url = f"http://{panel_host}:{server_control_port}"
-                        
-                        auth = tunnel.spec.get("auth")
-                        fingerprint = tunnel.spec.get("fingerprint")
-                        local_addr = tunnel.spec.get("local_addr", "127.0.0.1")
-                        local_port = tunnel.spec.get("local_port")
-                        reverse_spec = tunnel.spec.get("reverse_spec", f"R:{reverse_port}:{local_addr}:{local_port}")
-                        
-                        spec_for_node = {
-                            "server_url": server_url,
-                            "reverse_port": reverse_port,
-                            "remote_port": reverse_port,  # Also include as remote_port for compatibility
-                            "reverse_spec": reverse_spec,
-                            "auth": auth,
-                            "fingerprint": fingerprint,
-                            "use_ipv6": use_ipv6,
-                            "local_addr": local_addr
-                        }
-                    else:
-                        logger.warning(f"Chisel tunnel {tunnel.id}: Missing listen_port, skipping reset")
-                        continue
-                elif core == "frp":
-                    from app.routers.tunnels import prepare_frp_spec_for_node
-                    from fastapi import Request
-                    spec_for_node = tunnel.spec.copy()
-                    panel_address = node.node_metadata.get("panel_address", "")
-                    if panel_address:
-                        if "://" in panel_address:
-                            panel_address = panel_address.split("://", 1)[1]
-                        if ":" in panel_address:
-                            panel_host = panel_address.split(":")[0]
-                        else:
-                            panel_host = panel_address
-                        
-                        from app.utils import is_valid_ipv6_address
-                        if is_valid_ipv6_address(panel_host):
-                            server_addr = f"[{panel_host}]"
-                        else:
-                            server_addr = panel_host
-                        
-                        bind_port = spec_for_node.get("bind_port", 7000)
-                        spec_for_node["server_addr"] = server_addr
-                        spec_for_node["server_port"] = int(bind_port)
-                    else:
-                        import os
-                        panel_public_ip = os.getenv("PANEL_PUBLIC_IP") or os.getenv("PANEL_IP")
-                        if panel_public_ip and panel_public_ip not in ["localhost", "127.0.0.1", "::1", "0.0.0.0", ""]:
-                            spec_for_node["server_addr"] = panel_public_ip
-                        else:
-                            logger.error(f"FRP tunnel {tunnel.id}: Cannot determine panel address for reset")
-                            continue
+                remote_addr = server_spec.get("remote_addr", "0.0.0.0:23333")
+                from app.utils import parse_address_port
+                _, control_port, _ = parse_address_port(remote_addr)
+                if not control_port:
+                    control_port = 23333
+                server_spec["bind_addr"] = f"0.0.0.0:{control_port}"
+                server_spec["proxy_port"] = proxy_port
+                server_spec["transport"] = transport
+                server_spec["type"] = transport
+                if "websocket_tls" in server_spec:
+                    server_spec["websocket_tls"] = server_spec["websocket_tls"]
+                elif "tls" in server_spec:
+                    server_spec["websocket_tls"] = server_spec["tls"]
                 
-                response = await client.apply_tunnel(
-                    node_id,
-                    {
-                        "tunnel_id": tunnel.id,
-                        "core": core,
-                        "type": tunnel.type,
-                        "spec": spec_for_node
-                    }
-                )
+                foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    logger.warning(f"Tunnel {tunnel.id}: Foreign node has no IP address, skipping")
+                    continue
+                transport_lower = transport.lower()
+                if transport_lower in ("websocket", "ws"):
+                    use_tls = bool(server_spec.get("websocket_tls") or server_spec.get("tls"))
+                    protocol = "wss://" if use_tls else "ws://"
+                    client_spec["remote_addr"] = f"{protocol}{foreign_node_ip}:{control_port}"
+                else:
+                    client_spec["remote_addr"] = f"{foreign_node_ip}:{control_port}"
+                client_spec["transport"] = transport
+                client_spec["type"] = transport
+                client_spec["token"] = token
+                if "websocket_tls" in server_spec:
+                    client_spec["websocket_tls"] = server_spec["websocket_tls"]
+                elif "tls" in server_spec:
+                    client_spec["websocket_tls"] = server_spec["tls"]
+                local_addr = client_spec.get("local_addr")
+                if not local_addr:
+                    local_addr = f"{foreign_node_ip}:{proxy_port}"
+                client_spec["local_addr"] = local_addr
+            
+            elif core == "chisel":
+                listen_port = server_spec.get("listen_port") or server_spec.get("remote_port")
+                if not listen_port:
+                    logger.warning(f"Tunnel {tunnel.id}: Missing listen_port, skipping")
+                    continue
                 
-                if response.get("status") == "error":
-                    error_msg = response.get("message", "Unknown error")
-                    logger.error(f"Error restarting {core} client for tunnel {tunnel.id} on node {node_id}: {error_msg}")
-                    raise Exception(f"Failed to apply tunnel: {error_msg}")
+                foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    logger.warning(f"Tunnel {tunnel.id}: Foreign node has no IP address, skipping")
+                    continue
+                server_control_port = server_spec.get("control_port") or (int(listen_port) + 10000)
+                server_spec["server_port"] = server_control_port
+                server_spec["reverse_port"] = listen_port
+                auth = server_spec.get("auth")
+                if auth:
+                    server_spec["auth"] = auth
+                fingerprint = server_spec.get("fingerprint")
+                if fingerprint:
+                    server_spec["fingerprint"] = fingerprint
                 
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                logger.error(f"Error restarting {core} client for tunnel {tunnel.id} on node {node_id}: {e}")
-                raise
+                client_spec["server_url"] = f"http://{foreign_node_ip}:{server_control_port}"
+                client_spec["reverse_port"] = listen_port
+                if auth:
+                    client_spec["auth"] = auth
+                if fingerprint:
+                    client_spec["fingerprint"] = fingerprint
+                local_addr = client_spec.get("local_addr")
+                if not local_addr:
+                    local_addr = f"{foreign_node_ip}:{listen_port}"
+                client_spec["local_addr"] = local_addr
+            
+            elif core == "frp":
+                bind_port = server_spec.get("bind_port", 7000)
+                token = server_spec.get("token")
+                server_spec["bind_port"] = bind_port
+                if token:
+                    server_spec["token"] = token
+                
+                foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    logger.warning(f"Tunnel {tunnel.id}: Foreign node has no IP address, skipping")
+                    continue
+                client_spec["server_addr"] = foreign_node_ip
+                client_spec["server_port"] = bind_port
+                if token:
+                    client_spec["token"] = token
+                tunnel_type = tunnel.type.lower() if tunnel.type else "tcp"
+                if tunnel_type not in ["tcp", "udp"]:
+                    tunnel_type = "tcp"
+                client_spec["type"] = tunnel_type
+                local_ip = client_spec.get("local_ip") or foreign_node_ip
+                local_port = client_spec.get("local_port") or bind_port
+                client_spec["local_ip"] = local_ip
+                client_spec["local_port"] = local_port
+            
+            elif core == "backhaul":
+                transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
+                control_port = server_spec.get("control_port") or server_spec.get("listen_port") or 3080
+                public_port = server_spec.get("public_port") or server_spec.get("remote_port") or server_spec.get("listen_port")
+                target_host = server_spec.get("target_host", "127.0.0.1")
+                target_port = server_spec.get("target_port") or public_port
+                token = server_spec.get("token")
+                
+                if not public_port:
+                    logger.warning(f"Tunnel {tunnel.id}: Missing public_port, skipping")
+                    continue
+                
+                bind_ip = server_spec.get("bind_ip") or server_spec.get("listen_ip") or "0.0.0.0"
+                server_spec["bind_addr"] = f"{bind_ip}:{control_port}"
+                server_spec["transport"] = transport
+                server_spec["type"] = transport
+                if target_port:
+                    target_addr = f"{target_host}:{target_port}"
+                    server_spec["ports"] = [f"{public_port}={target_addr}"]
+                else:
+                    server_spec["ports"] = [str(public_port)]
+                if token:
+                    server_spec["token"] = token
+                
+                foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    logger.warning(f"Tunnel {tunnel.id}: Foreign node has no IP address, skipping")
+                    continue
+                transport_lower = transport.lower()
+                if transport_lower in ("ws", "wsmux"):
+                    use_tls = bool(server_spec.get("tls_cert") or server_spec.get("server_options", {}).get("tls_cert"))
+                    protocol = "wss://" if use_tls else "ws://"
+                    client_spec["remote_addr"] = f"{protocol}{foreign_node_ip}:{control_port}"
+                else:
+                    client_spec["remote_addr"] = f"{foreign_node_ip}:{control_port}"
+                client_spec["transport"] = transport
+                client_spec["type"] = transport
+                if token:
+                    client_spec["token"] = token
+            
+            # Apply server config to foreign node
+            if not foreign_node.node_metadata.get("api_address"):
+                foreign_node.node_metadata["api_address"] = f"http://{foreign_node.node_metadata.get('ip_address', foreign_node.fingerprint)}:{foreign_node.node_metadata.get('api_port', 8888)}"
+                await db.commit()
+            
+            logger.info(f"Restarting tunnel {tunnel.id}: applying server config to foreign node {foreign_node.id}")
+            server_response = await client.send_to_node(
+                node_id=foreign_node.id,
+                endpoint="/api/agent/tunnels/apply",
+                data={
+                    "tunnel_id": tunnel.id,
+                    "core": core,
+                    "type": tunnel.type,
+                    "spec": server_spec
+                }
+            )
+            
+            if server_response.get("status") == "error":
+                error_msg = server_response.get("message", "Unknown error from foreign node")
+                logger.error(f"Failed to restart tunnel {tunnel.id} on foreign node {foreign_node.id}: {error_msg}")
+                continue
+            
+            # Apply client config to iran node
+            if not iran_node.node_metadata.get("api_address"):
+                iran_node.node_metadata["api_address"] = f"http://{iran_node.node_metadata.get('ip_address', iran_node.fingerprint)}:{iran_node.node_metadata.get('api_port', 8888)}"
+                await db.commit()
+            
+            logger.info(f"Restarting tunnel {tunnel.id}: applying client config to iran node {iran_node.id}")
+            client_response = await client.send_to_node(
+                node_id=iran_node.id,
+                endpoint="/api/agent/tunnels/apply",
+                data={
+                    "tunnel_id": tunnel.id,
+                    "core": core,
+                    "type": tunnel.type,
+                    "spec": client_spec
+                }
+            )
+            
+            if client_response.get("status") == "error":
+                error_msg = client_response.get("message", "Unknown error from iran node")
+                logger.error(f"Failed to restart tunnel {tunnel.id} on iran node {iran_node.id}: {error_msg}")
+            else:
+                logger.info(f"Successfully restarted tunnel {tunnel.id} on both nodes")
+            
+            await asyncio.sleep(0.5)
+        except Exception as e:
+            logger.error(f"Failed to restart tunnel {tunnel.id}: {e}", exc_info=True)
 

@@ -33,7 +33,11 @@ const Nodes = () => {
   const fetchNodes = async () => {
     try {
       const response = await api.get('/nodes')
-      setNodes(response.data)
+      // Filter only iran nodes (exclude foreign servers)
+      const iranNodes = response.data.filter((node: Node) => 
+        node.metadata?.role === 'iran' || !node.metadata?.role  // Default to iran for backward compatibility
+      )
+      setNodes(iranNodes)
     } catch (error) {
       console.error('Failed to fetch nodes:', error)
     } finally {
