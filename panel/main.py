@@ -369,7 +369,10 @@ async def _restore_node_tunnels():
                         from app.utils import parse_address_port
                         _, control_port, _ = parse_address_port(remote_addr)
                         if not control_port:
-                            control_port = 23333
+                            # Generate unique port based on tunnel_id hash to avoid conflicts
+                            import hashlib
+                            port_hash = int(hashlib.md5(tunnel.id.encode()).hexdigest()[:8], 16)
+                            control_port = 23333 + (port_hash % 1000)  # Ports 23333-24332
                         server_spec["bind_addr"] = f"0.0.0.0:{control_port}"
                         server_spec["proxy_port"] = proxy_port
                         server_spec["transport"] = transport
@@ -413,7 +416,10 @@ async def _restore_node_tunnels():
                         if not foreign_node_ip:
                             logger.warning(f"Tunnel {tunnel.id}: Foreign node has no IP address, skipping")
                             continue
-                        server_control_port = server_spec.get("control_port") or (int(listen_port) + 10000)
+                        # Generate unique control port to avoid conflicts
+                        import hashlib
+                        port_hash = int(hashlib.md5(tunnel.id.encode()).hexdigest()[:8], 16)
+                        server_control_port = server_spec.get("control_port") or (int(listen_port) + 10000 + (port_hash % 1000))
                         server_spec["server_port"] = server_control_port
                         server_spec["reverse_port"] = listen_port
                         auth = server_spec.get("auth")
@@ -435,7 +441,10 @@ async def _restore_node_tunnels():
                         client_spec["local_addr"] = local_addr
                     
                     elif tunnel.core == "frp":
-                        bind_port = server_spec.get("bind_port", 7000)
+                        # Generate unique bind_port to avoid conflicts
+                        import hashlib
+                        port_hash = int(hashlib.md5(tunnel.id.encode()).hexdigest()[:8], 16)
+                        bind_port = server_spec.get("bind_port") or (7000 + (port_hash % 1000))
                         token = server_spec.get("token")
                         server_spec["bind_port"] = bind_port
                         if token:
@@ -460,7 +469,10 @@ async def _restore_node_tunnels():
                     
                     elif tunnel.core == "backhaul":
                         transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
-                        control_port = server_spec.get("control_port") or server_spec.get("listen_port") or 3080
+                        # Generate unique control_port to avoid conflicts
+                        import hashlib
+                        port_hash = int(hashlib.md5(tunnel.id.encode()).hexdigest()[:8], 16)
+                        control_port = server_spec.get("control_port") or server_spec.get("listen_port") or (3080 + (port_hash % 1000))
                         public_port = server_spec.get("public_port") or server_spec.get("remote_port") or server_spec.get("listen_port")
                         target_host = server_spec.get("target_host", "127.0.0.1")
                         target_port = server_spec.get("target_port") or public_port

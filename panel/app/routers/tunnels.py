@@ -265,12 +265,15 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                     return db_tunnel
                 
                 # Server config: foreign node listens on control port and proxy port
-                # Control port for rathole server (default 23333 or from remote_addr)
+                # Generate unique control port for each tunnel to avoid conflicts
                 remote_addr = server_spec.get("remote_addr", "0.0.0.0:23333")
                 from app.utils import parse_address_port
                 _, control_port, _ = parse_address_port(remote_addr)
                 if not control_port:
-                    control_port = 23333
+                    # Generate unique port based on tunnel_id hash to avoid conflicts
+                    import hashlib
+                    port_hash = int(hashlib.md5(db_tunnel.id.encode()).hexdigest()[:8], 16)
+                    control_port = 23333 + (port_hash % 1000)  # Ports 23333-24332
                 server_spec["bind_addr"] = f"0.0.0.0:{control_port}"
                 server_spec["proxy_port"] = proxy_port
                 server_spec["transport"] = transport
@@ -282,6 +285,12 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 
                 # Client config: iran node connects to foreign node
                 foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    db_tunnel.status = "error"
+                    db_tunnel.error_message = "Foreign node has no IP address"
+                    await db.commit()
+                    await db.refresh(db_tunnel)
+                    return db_tunnel
                 transport_lower = transport.lower()
                 # For WebSocket transports, remote_addr needs protocol prefix
                 if transport_lower in ("websocket", "ws"):
@@ -315,7 +324,16 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                     return db_tunnel
                 
                 foreign_node_ip = foreign_node.node_metadata.get("ip_address")
-                server_control_port = server_spec.get("control_port") or (int(listen_port) + 10000)
+                if not foreign_node_ip:
+                    db_tunnel.status = "error"
+                    db_tunnel.error_message = "Foreign node has no IP address"
+                    await db.commit()
+                    await db.refresh(db_tunnel)
+                    return db_tunnel
+                # Generate unique control port to avoid conflicts
+                import hashlib
+                port_hash = int(hashlib.md5(db_tunnel.id.encode()).hexdigest()[:8], 16)
+                server_control_port = server_spec.get("control_port") or (int(listen_port) + 10000 + (port_hash % 1000))
                 # Server config: foreign node runs chisel server
                 server_spec["server_port"] = server_control_port
                 server_spec["reverse_port"] = listen_port
@@ -341,7 +359,10 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 
             elif db_tunnel.core == "frp":
                 # FRP server config for foreign node
-                bind_port = server_spec.get("bind_port", 7000)
+                # Generate unique bind_port to avoid conflicts
+                import hashlib
+                port_hash = int(hashlib.md5(db_tunnel.id.encode()).hexdigest()[:8], 16)
+                bind_port = server_spec.get("bind_port") or (7000 + (port_hash % 1000))
                 token = server_spec.get("token")
                 server_spec["bind_port"] = bind_port
                 if token:
@@ -349,6 +370,12 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 
                 # FRP client config for iran node
                 foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    db_tunnel.status = "error"
+                    db_tunnel.error_message = "Foreign node has no IP address"
+                    await db.commit()
+                    await db.refresh(db_tunnel)
+                    return db_tunnel
                 client_spec["server_addr"] = foreign_node_ip
                 client_spec["server_port"] = bind_port
                 if token:
@@ -365,7 +392,10 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
             elif db_tunnel.core == "backhaul":
                 # Backhaul server config for foreign node
                 transport = server_spec.get("transport") or server_spec.get("type") or "tcp"
-                control_port = server_spec.get("control_port") or server_spec.get("listen_port") or 3080
+                # Generate unique control_port to avoid conflicts
+                import hashlib
+                port_hash = int(hashlib.md5(db_tunnel.id.encode()).hexdigest()[:8], 16)
+                control_port = server_spec.get("control_port") or server_spec.get("listen_port") or (3080 + (port_hash % 1000))
                 public_port = server_spec.get("public_port") or server_spec.get("remote_port") or server_spec.get("listen_port")
                 target_host = server_spec.get("target_host", "127.0.0.1")
                 target_port = server_spec.get("target_port") or public_port
@@ -393,6 +423,12 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 
                 # Client config: iran node connects to foreign node
                 foreign_node_ip = foreign_node.node_metadata.get("ip_address")
+                if not foreign_node_ip:
+                    db_tunnel.status = "error"
+                    db_tunnel.error_message = "Foreign node has no IP address"
+                    await db.commit()
+                    await db.refresh(db_tunnel)
+                    return db_tunnel
                 transport_lower = transport.lower()
                 # For WS/WSMux transports, remote_addr needs protocol prefix
                 if transport_lower in ("ws", "wsmux"):
