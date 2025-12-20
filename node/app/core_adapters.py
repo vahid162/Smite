@@ -86,6 +86,11 @@ class RatholeAdapter:
         
         mode = spec.get('mode', 'client')  # Default to client for backward compatibility
         
+        # Get transport type (tcp or websocket)
+        transport = (spec.get('transport') or spec.get('type') or 'tcp').lower()
+        use_websocket = transport == 'websocket' or transport == 'ws'
+        websocket_tls = spec.get('websocket_tls', False) or spec.get('tls', False)
+        
         if mode == 'server':
             # Server mode: foreign node runs rathole server
             bind_addr = spec.get('bind_addr', '0.0.0.0:23333')
@@ -106,7 +111,19 @@ class RatholeAdapter:
             config = f"""[server]
 bind_addr = "{bind_host}:{bind_port}"
 default_token = "{token}"
+"""
+            
+            if use_websocket:
+                config += f"""
+[server.transport]
+type = "websocket"
 
+[server.transport.websocket]
+"""
+                if websocket_tls:
+                    config += "tls = true\n"
+            
+            config += f"""
 [server.services.{tunnel_id}]
 bind_addr = "0.0.0.0:{proxy_port}"
 """
@@ -138,10 +155,30 @@ bind_addr = "0.0.0.0:{proxy_port}"
             if not token:
                 raise ValueError("Rathole client requires 'token' in spec")
             
+            # For WebSocket, remote_addr might have ws:// or wss:// prefix
+            # Remove it as Rathole expects just host:port
+            if remote_addr.startswith('ws://'):
+                remote_addr = remote_addr[5:]
+            elif remote_addr.startswith('wss://'):
+                remote_addr = remote_addr[6:]
+                websocket_tls = True
+            
             config = f"""[client]
 remote_addr = "{remote_addr}"
 default_token = "{token}"
+"""
+            
+            if use_websocket:
+                config += f"""
+[client.transport]
+type = "websocket"
 
+[client.transport.websocket]
+"""
+                if websocket_tls:
+                    config += "tls = true\n"
+            
+            config += f"""
 [client.services.{tunnel_id}]
 local_addr = "{local_addr}"
 """
@@ -956,132 +993,6 @@ proxies:
         }
 
 
-class GostAdapter:
-    """GOST forwarder adapter (runs on node)"""
-    name = "xray"  # Reuse xray core name for GOST forwarder
-    
-    def __init__(self):
-        self.config_dir = Path("/etc/smite-node/gost")
-        self.config_dir.mkdir(parents=True, exist_ok=True)
-        self.processes = {}
-        self.log_handles = {}
-    
-    def _resolve_binary(self) -> Path:
-        env_path = os.environ.get("GOST_BINARY")
-        if env_path:
-            p = Path(env_path)
-            if p.exists() and p.is_file():
-                return p
-        common = [Path("/usr/local/bin/gost"), Path("/usr/bin/gost")]
-        for c in common:
-            if c.exists() and c.is_file():
-                return c
-        resolved = shutil.which("gost")
-        if resolved:
-            return Path(resolved)
-        raise FileNotFoundError("gost binary not found. Set GOST_BINARY or install gost.")
-    
-    def apply(self, tunnel_id: str, spec: Dict[str, Any]):
-        """Start GOST forward on node"""
-        if tunnel_id in self.processes:
-            self.remove(tunnel_id)
-        
-        forward_to = spec.get("forward_to")
-        remote_ip = spec.get("remote_ip")
-        remote_port = spec.get("remote_port") or spec.get("listen_port") or spec.get("port")
-        listen_port = spec.get("listen_port") or remote_port
-        tunnel_type = (spec.get("type") or "tcp").lower()
-        use_ipv6 = bool(spec.get("use_ipv6"))
-        
-        if not forward_to:
-            if not remote_ip or not remote_port:
-                raise ValueError("GOST requires remote_ip and remote_port")
-            forward_to = f"{remote_ip}:{remote_port}"
-        
-        if not listen_port or not forward_to:
-            raise ValueError("Missing listen_port or forward_to for GOST")
-        
-        forward_host, forward_port, _ = parse_address_port(forward_to)
-        if not forward_port:
-            forward_port = remote_port or listen_port
-        target_addr = f"[{forward_host}]" if ":" in forward_host and not forward_host.startswith("[") else forward_host
-        target_addr = f"{target_addr}:{forward_port}"
-        
-        listen_addr = f"[::]:{listen_port}" if use_ipv6 else f"0.0.0.0:{listen_port}"
-        
-        if tunnel_type == "tcp":
-            cmd = ["gost", f"-L=tcp://{listen_addr}/{target_addr}"]
-        elif tunnel_type == "udp":
-            cmd = ["gost", f"-L=udp://{listen_addr}/{target_addr}"]
-        elif tunnel_type == "grpc":
-            cmd = ["gost", f"-L=grpc://{listen_addr}/{target_addr}"]
-        elif tunnel_type == "tcpmux":
-            cmd = ["gost", f"-L=tcpmux://{listen_addr}/{target_addr}"]
-        else:
-            raise ValueError(f"Unsupported GOST type: {tunnel_type}")
-        
-        binary = self._resolve_binary()
-        cmd[0] = str(binary)
-        
-        log_file = self.config_dir / f"gost_{tunnel_id}.log"
-        log_f = open(log_file, "w", buffering=1)
-        log_f.write(f"Starting GOST for {tunnel_id}\n")
-        log_f.write(f"Command: {' '.join(cmd)}\n")
-        log_f.flush()
-        
-        proc = subprocess.Popen(
-            cmd,
-            stdout=log_f,
-            stderr=subprocess.STDOUT,
-            cwd=str(self.config_dir),
-            start_new_session=True
-        )
-        self.processes[tunnel_id] = proc
-        self.log_handles[tunnel_id] = log_f
-        time.sleep(1.0)
-        if proc.poll() is not None:
-            stderr = ""
-            if log_file.exists():
-                with open(log_file, "r") as f:
-                    stderr = f.read()
-            try:
-                log_f.close()
-            except:
-                pass
-            del self.processes[tunnel_id]
-            raise RuntimeError(f"gost failed to start: {stderr[-500:] if len(stderr) > 500 else stderr}")
-    
-    def remove(self, tunnel_id: str):
-        """Stop GOST forward"""
-        if tunnel_id in self.processes:
-            proc = self.processes[tunnel_id]
-            try:
-                proc.terminate()
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-            except:
-                pass
-            del self.processes[tunnel_id]
-        if tunnel_id in self.log_handles:
-            try:
-                self.log_handles[tunnel_id].close()
-            except:
-                pass
-            del self.log_handles[tunnel_id]
-        try:
-            subprocess.run(["pkill", "-f", f"gost.*{tunnel_id}"], check=False, timeout=3)
-        except:
-            pass
-    
-    def status(self, tunnel_id: str) -> Dict[str, Any]:
-        is_running = False
-        if tunnel_id in self.processes:
-            is_running = self.processes[tunnel_id].poll() is None
-        return {"active": is_running, "type": "gost", "process_running": is_running}
-
-
 class AdapterManager:
     """Manager for core adapters"""
     
@@ -1091,7 +1002,6 @@ class AdapterManager:
             "backhaul": BackhaulAdapter(),
             "chisel": ChiselAdapter(),
             "frp": FrpAdapter(),
-            "xray": GostAdapter(),
         }
         self.active_tunnels: Dict[str, CoreAdapter] = {}
     
@@ -1139,3 +1049,4 @@ class AdapterManager:
         """Cleanup all tunnels"""
         for tunnel_id in list(self.active_tunnels.keys()):
             await self.remove_tunnel(tunnel_id)
+

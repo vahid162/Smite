@@ -17,7 +17,6 @@ class NodeCreate(BaseModel):
     name: str
     ip_address: str
     api_port: int = 8888
-    role: str
     metadata: dict = {}
 
 
@@ -29,7 +28,6 @@ class NodeResponse(BaseModel):
     registered_at: datetime
     last_seen: datetime
     metadata: dict
-    role: str
     
     class Config:
         from_attributes = True
@@ -52,8 +50,8 @@ async def create_node(node: NodeCreate, db: AsyncSession = Depends(get_db)):
     metadata["ip_address"] = node.ip_address
     metadata["api_port"] = node.api_port
     
-    # Validate and set role (explicit from payload)
-    incoming_role = node.role
+    # Validate and set role
+    incoming_role = node.metadata.get("role", "iran") if node.metadata else "iran"
     if incoming_role not in ["iran", "foreign"]:
         raise HTTPException(
             status_code=400, 
@@ -87,8 +85,7 @@ async def create_node(node: NodeCreate, db: AsyncSession = Depends(get_db)):
             status=existing.status,
             registered_at=existing.registered_at,
             last_seen=existing.last_seen,
-            metadata=existing.node_metadata or {},
-            role=existing_role
+            metadata=existing.node_metadata or {}
         )
     
     db_node = Node(
@@ -107,8 +104,7 @@ async def create_node(node: NodeCreate, db: AsyncSession = Depends(get_db)):
         status=db_node.status,
         registered_at=db_node.registered_at,
         last_seen=db_node.last_seen,
-        metadata=db_node.node_metadata or {},
-        role=incoming_role
+        metadata=db_node.node_metadata or {}
     )
 
 
@@ -125,8 +121,7 @@ async def list_nodes(db: AsyncSession = Depends(get_db)):
             status=n.status,
             registered_at=n.registered_at,
             last_seen=n.last_seen,
-            metadata=n.node_metadata or {},
-            role=n.node_metadata.get("role", "iran") if n.node_metadata else "iran"
+            metadata=n.node_metadata or {}
         )
         for n in nodes
     ]
@@ -146,8 +141,7 @@ async def get_node(node_id: str, db: AsyncSession = Depends(get_db)):
         status=node.status,
         registered_at=node.registered_at,
         last_seen=node.last_seen,
-        metadata=node.node_metadata or {},
-        role=node.node_metadata.get("role", "iran") if node.node_metadata else "iran"
+        metadata=node.node_metadata or {}
     )
 
 
@@ -162,3 +156,4 @@ async def delete_node(node_id: str, db: AsyncSession = Depends(get_db)):
     await db.delete(node)
     await db.commit()
     return {"status": "deleted"}
+

@@ -10,7 +10,6 @@ interface Node {
   registered_at: string
   last_seen: string
   metadata: Record<string, any>
-  role?: string
 }
 
 const Nodes = () => {
@@ -34,11 +33,7 @@ const Nodes = () => {
   const fetchNodes = async () => {
     try {
       const response = await api.get('/nodes')
-      // Show only Iran-side nodes (default role is iran when missing)
-      const iranNodes = response.data.filter((node: Node) => 
-        node.role === 'iran' || node.metadata?.role === 'iran' || (!node.role && !node.metadata?.role)
-      )
-      setNodes(iranNodes)
+      setNodes(response.data)
     } catch (error) {
       console.error('Failed to fetch nodes:', error)
     } finally {
@@ -435,3 +430,4 @@ const CertModal = ({ certContent, loading, onClose, onCopy, copied }: CertModalP
 }
 
 export default Nodes
+

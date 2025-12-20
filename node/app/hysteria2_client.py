@@ -79,7 +79,6 @@ class Hysteria2Client:
             "name": settings.node_name,
             "ip_address": node_ip,
             "api_port": settings.node_api_port,
-            "role": settings.node_role,
             "fingerprint": self.fingerprint,
             "metadata": {
                 "api_address": f"http://{node_ip}:{settings.node_api_port}",
