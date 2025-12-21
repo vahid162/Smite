@@ -1157,10 +1157,77 @@ class AdapterManager:
             "gost": GostAdapter(),
         }
         self.active_tunnels: Dict[str, CoreAdapter] = {}
+        self.config_dir = Path("/var/lib/smite-node")
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self.tunnels_file = self.config_dir / "tunnels.json"
+        self.tunnel_configs: Dict[str, Dict[str, Any]] = {}
     
     def get_adapter(self, tunnel_core: str) -> Optional[CoreAdapter]:
         """Get adapter for tunnel core"""
         return self.adapters.get(tunnel_core)
+    
+    def _load_tunnels(self):
+        """Load persisted tunnel configurations"""
+        import json
+        if self.tunnels_file.exists():
+            try:
+                with open(self.tunnels_file, 'r') as f:
+                    self.tunnel_configs = json.load(f)
+                logger.info(f"Loaded {len(self.tunnel_configs)} persisted tunnel configurations")
+            except Exception as e:
+                logger.warning(f"Failed to load tunnel configurations: {e}")
+                self.tunnel_configs = {}
+        else:
+            self.tunnel_configs = {}
+    
+    def _save_tunnels(self):
+        """Save tunnel configurations to disk"""
+        import json
+        try:
+            with open(self.tunnels_file, 'w') as f:
+                json.dump(self.tunnel_configs, f, indent=2)
+        except Exception as e:
+            logger.error(f"Failed to save tunnel configurations: {e}")
+    
+    async def restore_tunnels(self):
+        """Restore all persisted tunnels on startup"""
+        import logging
+        logger = logging.getLogger(__name__)
+        self._load_tunnels()
+        
+        if not self.tunnel_configs:
+            logger.info("No persisted tunnels to restore")
+            return
+        
+        logger.info(f"Restoring {len(self.tunnel_configs)} persisted tunnels...")
+        restored = 0
+        failed = 0
+        
+        for tunnel_id, config in self.tunnel_configs.items():
+            try:
+                tunnel_core = config.get("core")
+                spec = config.get("spec", {})
+                
+                if not tunnel_core:
+                    logger.warning(f"Tunnel {tunnel_id}: Missing core, skipping")
+                    failed += 1
+                    continue
+                
+                adapter = self.get_adapter(tunnel_core)
+                if not adapter:
+                    logger.warning(f"Tunnel {tunnel_id}: Unknown core {tunnel_core}, skipping")
+                    failed += 1
+                    continue
+                
+                logger.info(f"Restoring tunnel {tunnel_id}: core={tunnel_core}")
+                adapter.apply(tunnel_id, spec)
+                self.active_tunnels[tunnel_id] = adapter
+                restored += 1
+            except Exception as e:
+                logger.error(f"Failed to restore tunnel {tunnel_id}: {e}", exc_info=True)
+                failed += 1
+        
+        logger.info(f"Tunnel restoration completed: {restored} restored, {failed} failed")
     
     async def apply_tunnel(self, tunnel_id: str, tunnel_core: str, spec: Dict[str, Any]):
         """Apply tunnel using appropriate adapter"""
@@ -1181,6 +1248,13 @@ class AdapterManager:
         logger.info(f"Using adapter: {adapter.name}")
         adapter.apply(tunnel_id, spec)
         self.active_tunnels[tunnel_id] = adapter
+        
+        self.tunnel_configs[tunnel_id] = {
+            "core": tunnel_core,
+            "spec": spec
+        }
+        self._save_tunnels()
+        
         logger.info(f"Tunnel {tunnel_id} applied successfully")
     
     async def remove_tunnel(self, tunnel_id: str):
@@ -1189,6 +1263,10 @@ class AdapterManager:
             adapter = self.active_tunnels[tunnel_id]
             adapter.remove(tunnel_id)
             del self.active_tunnels[tunnel_id]
+        
+        if tunnel_id in self.tunnel_configs:
+            del self.tunnel_configs[tunnel_id]
+            self._save_tunnels()
     
     async def get_tunnel_status(self, tunnel_id: str) -> Dict[str, Any]:
         """Get tunnel status"""

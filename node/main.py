@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
     adapter_manager = AdapterManager()
     app.state.adapter_manager = adapter_manager
     
+    try:
+        await adapter_manager.restore_tunnels()
+    except Exception as e:
+        logger.error(f"Failed to restore tunnels on startup: {e}", exc_info=True)
+    
     yield
     if hasattr(app.state, 'h2_client') and app.state.h2_client:
         try:

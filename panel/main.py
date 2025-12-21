@@ -110,8 +110,8 @@ async def _restore_forwards():
             logger.info(f"Found {len(tunnels)} active tunnels to restore")
             
             for tunnel in tunnels:
-                logger.info(f"Checking tunnel {tunnel.id}: type={tunnel.type}, core={tunnel.core}")
-                needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and tunnel.core == "gost"
+                logger.info(f"Checking tunnel {tunnel.id}: type={tunnel.type}, core={tunnel.core}, node_id={tunnel.node_id}")
+                needs_gost_forwarding = tunnel.type in ["tcp", "udp", "ws", "grpc", "tcpmux"] and tunnel.core == "gost" and not tunnel.node_id
                 if not needs_gost_forwarding:
                     continue
                 
@@ -274,27 +274,33 @@ async def _restore_frp_servers():
 
 
 async def _restore_node_tunnels():
-    """Restore node-side tunnels for active tunnels after panel restart"""
+    """Sync node-side tunnels with panel database after panel restart
+    
+    Note: Nodes restore their own tunnels on startup independently.
+    This function syncs the panel's view with nodes, but tunnels will
+    continue working even if panel is down or this sync fails.
+    """
     try:
-        logger.info("Starting to restore node-side tunnels...")
+        logger.info("Starting to sync node-side tunnels with panel database...")
         async with AsyncSessionLocal() as db:
             result = await db.execute(select(Tunnel).where(Tunnel.status == "active"))
             tunnels = result.scalars().all()
             
-            logger.info(f"Found {len(tunnels)} active tunnels to check for restoration")
+            logger.info(f"Found {len(tunnels)} active tunnels to check for sync")
             
             reverse_tunnels = [t for t in tunnels if t.core in ["rathole", "backhaul", "chisel", "frp"]]
-            gost_tunnels = [t for t in tunnels if t.core == "gost"]
+            gost_tunnels = [t for t in tunnels if t.core == "gost" and t.node_id]
             
             if not reverse_tunnels and not gost_tunnels:
-                logger.info("No node-side tunnels to restore")
+                logger.info("No node-side tunnels to sync")
                 return
             
-            logger.info(f"Found {len(reverse_tunnels)} active reverse tunnels and {len(gost_tunnels)} GOST tunnels to restore")
+            logger.info(f"Found {len(reverse_tunnels)} active reverse tunnels and {len(gost_tunnels)} node-side GOST tunnels to sync")
             
             client = NodeClient()
             restored_count = 0
             failed_count = 0
+            skipped_count = 0
             
             for tunnel in reverse_tunnels:
                 try:
@@ -325,7 +331,8 @@ async def _restore_node_tunnels():
                                 iran_node = iran_nodes[0]
                     
                     if not foreign_node or not iran_node:
-                        logger.warning(f"Tunnel {tunnel.id}: Missing foreign or iran node, skipping restore")
+                        logger.warning(f"Tunnel {tunnel.id}: Missing foreign or iran node, skipping sync (nodes will restore themselves)")
+                        skipped_count += 1
                         continue
                     
                     server_spec = tunnel.spec.copy() if tunnel.spec else {}
@@ -585,7 +592,8 @@ async def _restore_node_tunnels():
                             iran_node = iran_nodes[0]
                     
                     if not iran_node:
-                        logger.warning(f"GOST tunnel {tunnel.id}: No iran node found, skipping restore")
+                        logger.warning(f"GOST tunnel {tunnel.id}: No iran node found, skipping sync (node will restore itself)")
+                        skipped_count += 1
                         continue
                     
                     if not foreign_ip or foreign_ip in ["127.0.0.1", "localhost"]:
@@ -637,7 +645,8 @@ async def _restore_node_tunnels():
                     logger.error(f"Failed to restore GOST tunnel {tunnel.id}: {e}", exc_info=True)
                     failed_count += 1
             
-            logger.info(f"Tunnel restoration completed: {restored_count} restored, {failed_count} failed out of {len(reverse_tunnels) + len(gost_tunnels)} total")
+            logger.info(f"Tunnel sync completed: {restored_count} synced, {failed_count} failed, {skipped_count} skipped out of {len(reverse_tunnels) + len(gost_tunnels)} total")
+            logger.info("Note: Nodes restore their own tunnels on startup, so tunnels work even if panel is down")
                     
     except Exception as e:
         logger.error(f"Error restoring node tunnels: {e}", exc_info=True)
