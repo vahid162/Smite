@@ -5,6 +5,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, Optional
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,7 @@ class FrpCommClient:
         self.server_addr: Optional[str] = None
         self.server_port: Optional[int] = None
         self.token: Optional[str] = None
-        self.local_port = 8888
+        self.local_port = settings.node_api_port
         self.remote_port: Optional[int] = None
     
     def _resolve_binary_path(self) -> Path:
@@ -127,7 +128,6 @@ proxies:
             logger.info(f"[FRP] FRP communication client started (PID: {self.process.pid}, remote_port={self.remote_port})")
             
             if self.remote_port:
-                import time
                 time.sleep(1)
                 if self.log_file.exists():
                     with open(self.log_file, 'r') as f:
