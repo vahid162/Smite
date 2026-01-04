@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
     
     await _load_and_start_frp_comm()
     await _load_and_start_telegram_bot()
+    await _load_and_start_tunnel_reapply()
     
     await _restore_forwards()
     
@@ -695,6 +696,15 @@ async def _load_and_start_telegram_bot():
         await telegram_bot.start()
     except Exception as e:
         logger.error(f"Error starting Telegram bot: {e}", exc_info=True)
+
+
+async def _load_and_start_tunnel_reapply():
+    """Load tunnel reapply settings and start task if enabled"""
+    try:
+        from app.tunnel_reapply_manager import tunnel_reapply_manager
+        await tunnel_reapply_manager.start()
+    except Exception as e:
+        logger.error(f"Error starting tunnel reapply manager: {e}", exc_info=True)
 
 
 async def _auto_reset_scheduler(app: FastAPI):

@@ -1584,6 +1584,51 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
         raise HTTPException(status_code=500, detail=f"Failed to apply tunnel: {str(e)}")
 
 
+@router.post("/reapply-all")
+async def reapply_all_tunnels(request: Request, db: AsyncSession = Depends(get_db)):
+    """Reapply all tunnels"""
+    result = await db.execute(select(Tunnel))
+    tunnels = result.scalars().all()
+    
+    if not tunnels:
+        return {"status": "success", "message": "No tunnels to reapply", "applied": 0, "failed": 0}
+    
+    applied = 0
+    failed = 0
+    errors = []
+    
+    # Call apply_tunnel for each tunnel
+    for tunnel in tunnels:
+        try:
+            # Call apply_tunnel directly - it's in the same module
+            try:
+                result_data = await apply_tunnel(tunnel.id, request, db)
+                if result_data and result_data.get("status") == "applied":
+                    applied += 1
+                else:
+                    failed += 1
+                    errors.append(f"Tunnel {tunnel.name}: Failed to apply")
+            except HTTPException as e:
+                failed += 1
+                errors.append(f"Tunnel {tunnel.name}: {e.detail}")
+            except Exception as e:
+                failed += 1
+                error_msg = str(e)
+                errors.append(f"Tunnel {tunnel.name}: {error_msg}")
+        except Exception as e:
+            logger.error(f"Error reapplying tunnel {tunnel.id}: {e}", exc_info=True)
+            failed += 1
+            errors.append(f"Tunnel {tunnel.name}: {str(e)}")
+    
+    return {
+        "status": "success",
+        "message": f"Reapplied {applied} tunnels, {failed} failed",
+        "applied": applied,
+        "failed": failed,
+        "errors": errors[:10]  # Limit errors to first 10
+    }
+
+
 @router.delete("/{tunnel_id}")
 async def delete_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """Delete a tunnel"""

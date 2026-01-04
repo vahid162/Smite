@@ -29,9 +29,16 @@ class TelegramSettings(BaseModel):
     backup_interval_unit: str = "minutes"
 
 
+class TunnelSettings(BaseModel):
+    auto_reapply_enabled: bool = False
+    auto_reapply_interval: int = 60
+    auto_reapply_interval_unit: str = "minutes"
+
+
 class SettingsUpdate(BaseModel):
     frp: Optional[FrpSettings] = None
     telegram: Optional[TelegramSettings] = None
+    tunnel: Optional[TunnelSettings] = None
 
 
 @router.get("")
@@ -44,6 +51,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
     
     frp_settings = settings_dict.get("frp", {})
     telegram_settings = settings_dict.get("telegram", {})
+    tunnel_settings = settings_dict.get("tunnel", {})  # Backward compatible: defaults to {} if not exists
     
     return {
         "frp": {
@@ -58,6 +66,11 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
             "backup_enabled": telegram_settings.get("backup_enabled", False),
             "backup_interval": telegram_settings.get("backup_interval", 60),
             "backup_interval_unit": telegram_settings.get("backup_interval_unit", "minutes")
+        },
+        "tunnel": {
+            "auto_reapply_enabled": tunnel_settings.get("auto_reapply_enabled", False) if tunnel_settings else False,
+            "auto_reapply_interval": tunnel_settings.get("auto_reapply_interval", 60) if tunnel_settings else 60,
+            "auto_reapply_interval_unit": tunnel_settings.get("auto_reapply_interval_unit", "minutes") if tunnel_settings else "minutes"
         }
     }
 
@@ -140,6 +153,32 @@ async def update_settings(settings_update: SettingsUpdate, request: Request, db:
         elif new_enabled and old_enabled:
             await telegram_bot.start_backup_task()
             logger.info("Telegram bot backup task restarted")
+    
+    if settings_update.tunnel:
+        result = await db.execute(select(Settings).where(Settings.key == "tunnel"))
+        setting = result.scalar_one_or_none()
+        
+        if setting:
+            setting.value = settings_update.tunnel.dict(exclude_none=True)
+            setting.updated_at = datetime.utcnow()
+        else:
+            setting = Settings(
+                key="tunnel",
+                value=settings_update.tunnel.dict(exclude_none=True)
+            )
+            db.add(setting)
+        
+        await db.commit()
+        await db.refresh(setting)
+        
+        # Start/stop auto reapply task
+        from app.tunnel_reapply_manager import tunnel_reapply_manager
+        if settings_update.tunnel.auto_reapply_enabled:
+            await tunnel_reapply_manager.start()
+            logger.info("Tunnel auto reapply task started")
+        else:
+            await tunnel_reapply_manager.stop()
+            logger.info("Tunnel auto reapply task stopped")
     
     return {"status": "success"}
 

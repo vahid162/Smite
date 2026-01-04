@@ -73,6 +73,9 @@ interface Translations {
     selectIranNode: string
     cancel: string
     loadingTunnels: string
+    reapplyAll: string
+    confirmReapplyAll: string
+    reapplyAllSuccess: string
   }
   coreHealth: {
     title: string
@@ -193,6 +196,9 @@ const translations: Record<Language, Translations> = {
       selectIranNode: 'Select an Iran node',
       cancel: 'Cancel',
       loadingTunnels: 'Loading tunnels...',
+      reapplyAll: 'Reapply All',
+      confirmReapplyAll: 'Are you sure you want to reapply all tunnels?',
+      reapplyAllSuccess: 'Success',
     },
     coreHealth: {
       title: 'Core Health',
@@ -228,6 +234,10 @@ const translations: Record<Language, Translations> = {
       minutes: 'Minutes',
       hours: 'Hours',
       backupDescription: 'Panel will automatically send backup files to all admin users at the specified interval.',
+      tunnelAutoReapply: 'Tunnel Auto Reapply',
+      enableTunnelAutoReapply: 'Enable Automatic Tunnel Reapply',
+      tunnelAutoReapplyDescription: 'Automatically reapply all tunnels at specified intervals',
+      tunnelReapplyInterval: 'Reapply Interval',
       saveSettings: 'Save Settings',
       saving: 'Saving...',
       loadingSettings: 'Loading settings...',
@@ -311,6 +321,9 @@ const translations: Record<Language, Translations> = {
       selectIranNode: 'یک نود ایران انتخاب کنید',
       cancel: 'لغو',
       loadingTunnels: 'در حال بارگذاری تونل‌ها...',
+      reapplyAll: 'اعمال مجدد همه',
+      confirmReapplyAll: 'آیا از اعمال مجدد همه تونل‌ها مطمئن هستید؟',
+      reapplyAllSuccess: 'موفقیت',
     },
     coreHealth: {
       title: 'سلامت هسته',
@@ -346,6 +359,10 @@ const translations: Record<Language, Translations> = {
       minutes: 'دقیقه',
       hours: 'ساعت',
       backupDescription: 'پنل به طور خودکار فایل‌های پشتیبان را در فاصله مشخص شده به همه کاربران ادمین ارسال می‌کند.',
+      tunnelAutoReapply: 'اعمال مجدد خودکار تونل',
+      enableTunnelAutoReapply: 'فعال کردن اعمال مجدد خودکار تونل',
+      tunnelAutoReapplyDescription: 'به صورت خودکار همه تونل‌ها را در فواصل زمانی مشخص اعمال مجدد کنید',
+      tunnelReapplyInterval: 'فاصله اعمال مجدد',
       saveSettings: 'ذخیره تنظیمات',
       saving: 'در حال ذخیره...',
       loadingSettings: 'در حال بارگذاری تنظیمات...',

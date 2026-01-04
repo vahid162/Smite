@@ -180,6 +180,7 @@ const Tunnels = () => {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingTunnel, setEditingTunnel] = useState<Tunnel | null>(null)
+  const [reapplyingAll, setReapplyingAll] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -241,6 +242,27 @@ const Tunnels = () => {
     }
   }
 
+  const handleReapplyAll = async () => {
+    if (!confirm(t.tunnels.confirmReapplyAll || 'Are you sure you want to reapply all tunnels?')) return
+    
+    setReapplyingAll(true)
+    try {
+      const response = await api.post('/tunnels/reapply-all')
+      if (response.data && response.data.status === 'success') {
+        alert(`${t.tunnels.reapplyAllSuccess || 'Success'}: ${response.data.message}`)
+        fetchData()
+      } else {
+        throw new Error(response.data?.message || 'Failed to reapply all tunnels')
+      }
+    } catch (error: any) {
+      console.error('Failed to reapply all tunnels:', error)
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to reapply all tunnels'
+      alert(errorMessage)
+    } finally {
+      setReapplyingAll(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -259,13 +281,23 @@ const Tunnels = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.tunnels.title}</h1>
           <p className="text-gray-500 dark:text-gray-400">{t.tunnels.subtitle}</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2"
-        >
-          <Plus size={20} />
-          {t.tunnels.createTunnel}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleReapplyAll}
+            disabled={reapplyingAll}
+            className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RotateCw size={20} className={reapplyingAll ? "animate-spin" : ""} />
+            {t.tunnels.reapplyAll}
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2"
+          >
+            <Plus size={20} />
+            {t.tunnels.createTunnel}
+          </button>
+        </div>
       </div>
 
       <div className="space-y-3">

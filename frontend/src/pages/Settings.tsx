@@ -17,16 +17,24 @@ interface TelegramSettings {
   backup_interval_unit?: string
 }
 
+interface TunnelSettings {
+  auto_reapply_enabled?: boolean
+  auto_reapply_interval?: number
+  auto_reapply_interval_unit?: string
+}
+
 interface SettingsData {
   frp: FrpSettings
   telegram: TelegramSettings
+  tunnel?: TunnelSettings
 }
 
 const Settings = () => {
   const { t } = useLanguage()
   const [settings, setSettings] = useState<SettingsData>({
     frp: { enabled: false, port: 7000 },
-    telegram: { enabled: false, admin_ids: [] }
+    telegram: { enabled: false, admin_ids: [] },
+    tunnel: { auto_reapply_enabled: false, auto_reapply_interval: 60, auto_reapply_interval_unit: 'minutes' }
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -74,6 +82,13 @@ const Settings = () => {
     setSettings(prev => ({
       ...prev,
       telegram: { ...prev.telegram, ...updates }
+    }))
+  }
+
+  const updateTunnel = (updates: Partial<TunnelSettings>) => {
+    setSettings(prev => ({
+      ...prev,
+      tunnel: { ...prev.tunnel, ...updates } as TunnelSettings
     }))
   }
 
@@ -319,6 +334,69 @@ const Settings = () => {
                   )}
                 </div>
               </>
+            )}
+          </div>
+        </div>
+
+        {/* Tunnel Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t.settings.tunnelAutoReapply || 'Tunnel Auto Reapply'}</h2>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {t.settings.enableTunnelAutoReapply || 'Enable Automatic Tunnel Reapply'}
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {t.settings.tunnelAutoReapplyDescription || 'Automatically reapply all tunnels at specified intervals'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => updateTunnel({ auto_reapply_enabled: !(settings.tunnel?.auto_reapply_enabled || false) })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  settings.tunnel?.auto_reapply_enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.tunnel?.auto_reapply_enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {settings.tunnel?.auto_reapply_enabled && (
+              <div className="space-y-4 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t.settings.tunnelReapplyInterval || 'Reapply Interval'}
+                    </label>
+                    <input
+                      type="number"
+                      value={settings.tunnel?.auto_reapply_interval || 60}
+                      onChange={(e) => updateTunnel({ auto_reapply_interval: parseInt(e.target.value) || 60 })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                      placeholder="60"
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      {t.settings.intervalUnit || 'Interval Unit'}
+                    </label>
+                    <select
+                      value={settings.tunnel?.auto_reapply_interval_unit || 'minutes'}
+                      onChange={(e) => updateTunnel({ auto_reapply_interval_unit: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
+                    >
+                      <option value="minutes">{t.settings.minutes}</option>
+                      <option value="hours">{t.settings.hours}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
