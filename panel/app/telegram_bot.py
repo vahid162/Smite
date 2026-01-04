@@ -216,46 +216,6 @@ class TelegramBot:
         try:
             self.application = Application.builder().token(self.bot_token).build()
             
-            class AddNodeFilter(filters.BaseFilter):
-                """Filter for add node entry point from keyboard"""
-                def __init__(self, bot_instance):
-                    super().__init__()
-                    self.bot = bot_instance
-                
-                def filter(self, message):
-                    if not message or not message.text:
-                        return False
-                    text = message.text
-                    user_id = message.from_user.id if message.from_user else 0
-                    try:
-                        return (self.bot.t(user_id, "add_iran_node") in text or 
-                               self.bot.t(user_id, "add_foreign_node") in text)
-                    except:
-                        return "Add Iran Node" in text or "Add Foreign Node" in text or "افزودن نود" in text
-            
-            add_node_filter = AddNodeFilter(self)
-            
-            add_node_conv = ConversationHandler(
-                entry_points=[
-                    CallbackQueryHandler(self.add_node_start, pattern="^add_node_"),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND & add_node_filter, self.add_node_start)
-                ],
-                states={
-                    WAITING_FOR_NODE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_node_name)],
-                    WAITING_FOR_NODE_IP: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_node_ip)],
-                    WAITING_FOR_NODE_PORT: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.add_node_port)],
-                },
-                fallbacks=[CallbackQueryHandler(self.cancel_operation, pattern="^cancel$")],
-            )
-            
-            remove_node_conv = ConversationHandler(
-                entry_points=[CallbackQueryHandler(self.remove_node_start, pattern="^remove_node_")],
-                states={
-                    WAITING_FOR_NODE_NAME: [CallbackQueryHandler(self.remove_node_confirm, pattern="^rm_node_")],
-                },
-                fallbacks=[CallbackQueryHandler(self.cancel_operation, pattern="^cancel$")],
-            )
-            
             create_tunnel_conv = ConversationHandler(
                 entry_points=[CallbackQueryHandler(self.create_tunnel_start, pattern="^create_tunnel$")],
                 states={
@@ -421,14 +381,6 @@ class TelegramBot:
             [
                 KeyboardButton(self.t(user_id, 'node_stats')),
                 KeyboardButton(self.t(user_id, 'tunnel_stats'))
-            ],
-            [
-                KeyboardButton(self.t(user_id, 'add_iran_node')),
-                KeyboardButton(self.t(user_id, 'add_foreign_node'))
-            ],
-            [
-                KeyboardButton(self.t(user_id, 'remove_iran_node')),
-                KeyboardButton(self.t(user_id, 'remove_foreign_node'))
             ],
             [
                 KeyboardButton(self.t(user_id, 'create_tunnel')),
@@ -1350,13 +1302,6 @@ Use buttons in messages to interact with nodes and tunnels."""
                 await self.cmd_nodes_callback(update.message)
             elif self.t(user_id, "tunnel_stats") in text:
                 await self.cmd_tunnels_callback(update.message)
-            elif self.t(user_id, "add_iran_node") in text or self.t(user_id, "add_foreign_node") in text:
-                # Let conversation handler handle this - don't process here
-                return
-            elif self.t(user_id, "remove_iran_node") in text:
-                await self.remove_node_start(update, context)
-            elif self.t(user_id, "remove_foreign_node") in text:
-                await self.remove_node_start(update, context)
             elif self.t(user_id, "create_tunnel") in text:
                 await self.create_tunnel_start(update, context)
             elif self.t(user_id, "remove_tunnel") in text:
