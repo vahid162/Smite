@@ -436,6 +436,7 @@ Use buttons in messages to interact with nodes and tunnels."""
             backup_dir = Path("/tmp/smite_backup")
             backup_dir.mkdir(exist_ok=True)
             
+            # Find panel root directory
             panel_root = Path(os.getcwd())
             if not (panel_root / "data").exists():
                 for possible_root in [Path("/opt/smite"), Path(__file__).parent.parent.parent]:
@@ -443,17 +444,40 @@ Use buttons in messages to interact with nodes and tunnels."""
                         panel_root = possible_root
                         break
             
+            # Backup database
             db_path = panel_root / "data" / "smite.db"
             if db_path.exists():
                 shutil.copy2(db_path, backup_dir / "smite.db")
             
-            env_path = panel_root / ".env"
-            if env_path.exists():
-                shutil.copy2(env_path, backup_dir / ".env")
+            # Backup .env file - check multiple locations
+            env_paths = [
+                panel_root / ".env",
+                panel_root.parent / ".env",
+                Path("/opt/smite") / ".env",
+                Path(os.getcwd()) / ".env",
+            ]
+            env_found = False
+            for env_path in env_paths:
+                if env_path.exists():
+                    shutil.copy2(env_path, backup_dir / ".env")
+                    env_found = True
+                    logger.info(f"Backed up .env from: {env_path}")
+                    break
             
-            docker_compose = panel_root / "docker-compose.yml"
-            if docker_compose.exists():
-                shutil.copy2(docker_compose, backup_dir / "docker-compose.yml")
+            # Backup docker-compose.yml - check multiple locations
+            docker_compose_paths = [
+                panel_root / "docker-compose.yml",
+                panel_root.parent / "docker-compose.yml",
+                Path("/opt/smite") / "docker-compose.yml",
+                Path(os.getcwd()) / "docker-compose.yml",
+            ]
+            docker_compose_found = False
+            for docker_compose in docker_compose_paths:
+                if docker_compose.exists():
+                    shutil.copy2(docker_compose, backup_dir / "docker-compose.yml")
+                    docker_compose_found = True
+                    logger.info(f"Backed up docker-compose.yml from: {docker_compose}")
+                    break
             
             certs_dir = panel_root / "certs"
             if certs_dir.exists():
