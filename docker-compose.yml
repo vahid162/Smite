@@ -9,6 +9,8 @@ services:
     volumes:
       - ./panel/data:/app/data
       - ./panel/certs:/app/certs
+      - ./.env:/app/config/.env:ro
+      - ./docker-compose.yml:/app/config/docker-compose.yml:ro
     env_file:
       - .env
     environment:

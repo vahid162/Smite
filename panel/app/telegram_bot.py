@@ -492,26 +492,42 @@ Use buttons in messages to interact with nodes and tunnels."""
                 (backup_dir / "server_certs").mkdir(exist_ok=True)
                 shutil.copy2(server_key_path, backup_dir / "server_certs" / "ca-server.key")
             
-            # Backup .env and docker-compose.yml from repo root (/opt/smite/)
-            repo_root = Path("/opt/smite")
-            if not repo_root.exists():
-                # Try to find repo root by going up from panel_root
-                if panel_root.exists() and panel_root.parent.exists():
-                    repo_root = panel_root.parent
-                else:
-                    # Fallback: try current working directory or common locations
-                    for possible_root in [Path(os.getcwd()), Path("/opt/smite")]:
-                        if (possible_root / ".env").exists() or (possible_root / "docker-compose.yml").exists():
-                            repo_root = possible_root
-                            break
+            # Backup .env and docker-compose.yml from mounted config directory
+            # These files are mounted into the container at /app/config/
+            config_dir = Path("/app/config")
             
-            env_file = repo_root / ".env"
-            if env_file.exists():
+            # Also try common locations as fallback
+            env_locations = [
+                config_dir / ".env",
+                Path("/opt/smite/.env"),
+                Path(os.getcwd()) / ".env"
+            ]
+            
+            compose_locations = [
+                config_dir / "docker-compose.yml",
+                Path("/opt/smite/docker-compose.yml"),
+                Path(os.getcwd()) / "docker-compose.yml"
+            ]
+            
+            # Find and backup .env
+            env_file = None
+            for env_path in env_locations:
+                if env_path.exists():
+                    env_file = env_path
+                    break
+            
+            if env_file:
                 shutil.copy2(env_file, backup_dir / ".env")
                 logger.info(f"Backed up .env from: {env_file}")
             
-            compose_file = repo_root / "docker-compose.yml"
-            if compose_file.exists():
+            # Find and backup docker-compose.yml
+            compose_file = None
+            for compose_path in compose_locations:
+                if compose_path.exists():
+                    compose_file = compose_path
+                    break
+            
+            if compose_file:
                 shutil.copy2(compose_file, backup_dir / "docker-compose.yml")
                 logger.info(f"Backed up docker-compose.yml from: {compose_file}")
             
