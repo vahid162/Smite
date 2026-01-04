@@ -1004,17 +1004,24 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
           alert('Backhaul tunnels require a node')
           return
         }
-        // Update backhaulState with ports from formData
-        // CRITICAL: formData.ports contains comma-separated ports (e.g., "8080,8081,8082")
-        // We MUST use formData.ports, not backhaulState.public_port which might have a default value
+        // CRITICAL: For Backhaul, the Ports field is in BackhaulForm, not in the main formData.ports
+        // backhaulState.public_port contains the comma-separated ports from the Backhaul form
+        // We should use backhaulState.public_port, NOT formData.ports (which is for other cores)
         console.log('Backhaul tunnel creation - formData.ports:', formData.ports, 'type:', typeof formData.ports)
-        console.log('Backhaul tunnel creation - backhaulState.public_port (before override):', backhaulState.public_port)
+        console.log('Backhaul tunnel creation - backhaulState.public_port:', backhaulState.public_port)
+        
+        // Use backhaulState.public_port (from BackhaulForm) - it has the correct comma-separated ports
+        // Only fallback to formData.ports if backhaulState.public_port is empty
+        const portsToUse = backhaulState.public_port && backhaulState.public_port.trim() 
+          ? backhaulState.public_port 
+          : (formData.ports || '8080')
+        
         const updatedBackhaulState = {
           ...backhaulState,
-          public_port: formData.ports || backhaulState.public_port,  // Use formData.ports, fallback to backhaulState.public_port
-          target_port: formData.ports || backhaulState.target_port
+          public_port: portsToUse,
+          target_port: portsToUse
         }
-        console.log('Backhaul tunnel creation - updatedBackhaulState.public_port (after override):', updatedBackhaulState.public_port)
+        console.log('Backhaul tunnel creation - updatedBackhaulState.public_port (final):', updatedBackhaulState.public_port)
         spec = buildBackhaulSpec(updatedBackhaulState, backhaulAdvanced)
         spec.use_ipv6 = formData.use_ipv6 || false
         // buildBackhaulSpec should already build ports array from public_port (formData.ports)
