@@ -143,6 +143,11 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
     
     logger.info(f"Creating tunnel: name={tunnel.name}, type={tunnel.type}, core={tunnel.core}, node_id={tunnel.node_id}")
     
+    # For Backhaul, log the ports received from frontend
+    if tunnel.spec and tunnel.core == "backhaul":
+        ports_received = tunnel.spec.get("ports", [])
+        logger.info(f"Backhaul tunnel creation: received ports from frontend: {ports_received} (type: {type(ports_received)}, length: {len(ports_received) if isinstance(ports_received, list) else 'N/A'})")
+    
     # Parse ports from spec if provided (skip for Backhaul as it has its own format)
     if tunnel.spec and tunnel.core != "backhaul":
         ports = parse_ports_from_spec(tunnel.spec)
@@ -408,8 +413,9 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 token = server_spec.get("token")
                 
                 # Handle multiple ports - Backhaul already has ports array in spec from frontend
-                ports = server_spec.get("ports", [])
-                logger.info(f"Backhaul tunnel {db_tunnel.id}: received ports from spec: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
+                # Get ports from the original tunnel.spec first, then fallback to server_spec
+                ports = db_tunnel.spec.get("ports") or server_spec.get("ports", [])
+                logger.info(f"Backhaul tunnel {db_tunnel.id}: received ports from db_tunnel.spec: {db_tunnel.spec.get('ports')}, from server_spec: {server_spec.get('ports')}, final: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
                 
                 if not ports or (isinstance(ports, list) and len(ports) == 0):
                     # Fallback to single port for backward compatibility
@@ -467,8 +473,20 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                 server_spec["transport"] = transport
                 server_spec["type"] = transport
                 server_spec["ports"] = ports
+                server_spec["mode"] = "server"  # Ensure mode is set
                 if token:
                     server_spec["token"] = token
+                
+                # CRITICAL: Update the database spec with processed ports so they're preserved
+                # This ensures when we read back from DB, all ports are there
+                if "ports" not in db_tunnel.spec:
+                    db_tunnel.spec["ports"] = []
+                db_tunnel.spec["ports"] = ports.copy() if isinstance(ports, list) else ports
+                from sqlalchemy.orm.attributes import flag_modified
+                flag_modified(db_tunnel, "spec")
+                await db.commit()
+                await db.refresh(db_tunnel)
+                logger.info(f"Backhaul tunnel {db_tunnel.id}: saved ports to database: {db_tunnel.spec.get('ports')} (count: {len(db_tunnel.spec.get('ports', []))})")
                 
                 iran_node_ip = iran_node.node_metadata.get("ip_address")
                 if not iran_node_ip:
@@ -486,6 +504,7 @@ async def create_tunnel(tunnel: TunnelCreate, request: Request, db: AsyncSession
                     client_spec["remote_addr"] = f"{iran_node_ip}:{control_port}"
                 client_spec["transport"] = transport
                 client_spec["type"] = transport
+                client_spec["mode"] = "client"  # Ensure mode is set
                 if token:
                     client_spec["token"] = token
             
@@ -1085,11 +1104,18 @@ async def update_tunnel(
     if tunnel_update.name is not None:
         tunnel.name = tunnel_update.name
     if tunnel_update.spec is not None:
+        # For Backhaul, ensure ports are preserved in the correct format
+        if tunnel.core == "backhaul" and tunnel_update.spec.get("ports"):
+            # Ports should already be in the correct format from frontend, but ensure they're preserved
+            ports = tunnel_update.spec.get("ports", [])
+            logger.info(f"Backhaul tunnel update {tunnel_id}: preserving ports from update: {ports} (count: {len(ports) if isinstance(ports, list) else 'N/A'})")
         tunnel.spec = tunnel_update.spec
     
     tunnel.revision += 1
     tunnel.updated_at = datetime.utcnow()
     
+    from sqlalchemy.orm.attributes import flag_modified
+    flag_modified(tunnel, "spec")
     await db.commit()
     await db.refresh(tunnel)
     
@@ -1343,8 +1369,9 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                     server_spec["listen_port"] = public_port
                     
                     # Handle multiple ports - preserve the ports array from spec
-                    ports = server_spec.get("ports", [])
-                    logger.info(f"Backhaul tunnel update {tunnel.id}: received ports from spec: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
+                    # Get ports from the original tunnel.spec first, then fallback to server_spec
+                    ports = tunnel.spec.get("ports") or server_spec.get("ports", [])
+                    logger.info(f"Backhaul tunnel update {tunnel.id}: received ports from tunnel.spec: {tunnel.spec.get('ports')}, from server_spec: {server_spec.get('ports')}, final: {ports} (type: {type(ports)}, length: {len(ports) if isinstance(ports, list) else 'N/A'})")
                     
                     if not ports or (isinstance(ports, list) and len(ports) == 0):
                         # Fallback to single port for backward compatibility
@@ -1390,9 +1417,19 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                     
                     logger.info(f"Backhaul tunnel update {tunnel.id}: processed ports: {ports} (count: {len(ports)})")
                     server_spec["ports"] = ports
-                    
+                    server_spec["mode"] = "server"  # Ensure mode is set
                     if token:
                         server_spec["token"] = token
+                    
+                    # CRITICAL: Update the database spec with processed ports so they're preserved
+                    if "ports" not in tunnel.spec:
+                        tunnel.spec["ports"] = []
+                    tunnel.spec["ports"] = ports.copy() if isinstance(ports, list) else ports
+                    from sqlalchemy.orm.attributes import flag_modified
+                    flag_modified(tunnel, "spec")
+                    await db.commit()
+                    await db.refresh(tunnel)
+                    logger.info(f"Backhaul tunnel update {tunnel.id}: saved ports to database: {tunnel.spec.get('ports')} (count: {len(tunnel.spec.get('ports', []))})")
                     
                     client_spec = spec.copy()
                     iran_node_ip = iran_node.node_metadata.get("ip_address")
@@ -1411,6 +1448,7 @@ async def apply_tunnel(tunnel_id: str, request: Request, db: AsyncSession = Depe
                         client_spec["remote_addr"] = f"{iran_node_ip}:{control_port}"
                     client_spec["transport"] = transport
                     client_spec["type"] = transport
+                    client_spec["mode"] = "client"  # Ensure mode is set
                     if token:
                         client_spec["token"] = token
                 
