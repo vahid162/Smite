@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Activity, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle, Settings } from 'lucide-react'
 import api from '../api/client'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface CoreHealth {
   core: string
@@ -29,6 +30,7 @@ interface ResetConfig {
 }
 
 const CoreHealth = () => {
+  const { t } = useLanguage()
   const [health, setHealth] = useState<CoreHealth[]>([])
   const [configs, setConfigs] = useState<ResetConfig[]>([])
   const [loading, setLoading] = useState(true)
@@ -149,7 +151,7 @@ const CoreHealth = () => {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mb-4"></div>
-          <p className="text-gray-500 dark:text-gray-400">Loading core health...</p>
+          <p className="text-gray-500 dark:text-gray-400">{t.common.loading}</p>
         </div>
       </div>
     )
@@ -158,8 +160,8 @@ const CoreHealth = () => {
   return (
     <div className="w-full max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Core Health</h1>
-        <p className="text-gray-600 dark:text-gray-400">Monitor and manage reverse tunnel cores</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.coreHealth.title}</h1>
+        <p className="text-gray-600 dark:text-gray-400">{t.coreHealth.subtitle}</p>
       </div>
 
       <div className="space-y-6">

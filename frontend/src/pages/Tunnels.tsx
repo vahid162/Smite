@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Trash2, Edit2, RotateCw } from 'lucide-react'
 import api from '../api/client'
 import { parseAddressPort, formatAddressPort } from '../utils/addressUtils'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface Tunnel {
   id: string
@@ -172,6 +173,7 @@ const getBackhaulDisplayInfo = (spec: Record<string, any> | undefined): Backhaul
 }
 
 const Tunnels = () => {
+  const { t } = useLanguage()
   const [tunnels, setTunnels] = useState<Tunnel[]>([])
   const [nodes, setNodes] = useState<any[]>([])
   const [servers, setServers] = useState<any[]>([])
@@ -254,15 +256,15 @@ const Tunnels = () => {
     <div className="w-full max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Tunnels</h1>
-          <p className="text-gray-500 dark:text-gray-400">Manage your tunnel connections</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.tunnels.title}</h1>
+          <p className="text-gray-500 dark:text-gray-400">{t.tunnels.subtitle}</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2"
         >
           <Plus size={20} />
-          Create Tunnel
+          {t.tunnels.createTunnel}
         </button>
       </div>
 
@@ -1134,7 +1136,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-auto">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-4 w-full max-w-xl my-4 max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Create Tunnel</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t.tunnels.createTunnel}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1520,7 +1522,7 @@ const AddTunnelModal = ({ nodes, servers, onClose, onSuccess }: AddTunnelModalPr
               type="submit"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              Create Tunnel
+              {t.tunnels.createTunnel}
             </button>
           </div>
         </form>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import api from '../api/client'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface LogEntry {
   timestamp: string
@@ -8,6 +9,7 @@ interface LogEntry {
 }
 
 const Logs = () => {
+  const { t } = useLanguage()
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const logEndRef = useRef<HTMLDivElement>(null)
@@ -91,8 +93,8 @@ const Logs = () => {
   return (
     <div className="w-full max-w-7xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Logs</h1>
-        <p className="text-gray-500 dark:text-gray-400">View system and application logs</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.logs.title}</h1>
+        <p className="text-gray-500 dark:text-gray-400">{t.logs.subtitle}</p>
       </div>
 
       <div 

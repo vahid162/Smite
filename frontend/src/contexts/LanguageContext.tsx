@@ -31,6 +31,78 @@ interface Translations {
     addServer: string
     loadingDashboard: string
   }
+  navigation: {
+    dashboard: string
+    nodes: string
+    servers: string
+    tunnels: string
+    coreHealth: string
+    logs: string
+    settings: string
+    logout: string
+    light: string
+    dark: string
+  }
+  nodes: {
+    title: string
+    subtitle: string
+    addNode: string
+    viewCACertificate: string
+    downloadCA: string
+  }
+  servers: {
+    title: string
+    subtitle: string
+    viewCACertificate: string
+    downloadCA: string
+  }
+  tunnels: {
+    title: string
+    subtitle: string
+    createTunnel: string
+  }
+  coreHealth: {
+    title: string
+    subtitle: string
+  }
+  logs: {
+    title: string
+    subtitle: string
+  }
+  settings: {
+    title: string
+    frpCommunication: string
+    frpDescription: string
+    enableFrp: string
+    frpPort: string
+    frpPortDescription: string
+    frpToken: string
+    frpTokenOptional: string
+    frpTokenDescription: string
+    telegramBot: string
+    telegramDescription: string
+    enableTelegram: string
+    botToken: string
+    botTokenDescription: string
+    adminUserIds: string
+    adminUserIdsDescription: string
+    addAdminId: string
+    remove: string
+    automaticBackup: string
+    enableBackup: string
+    backupInterval: string
+    intervalUnit: string
+    minutes: string
+    hours: string
+    backupDescription: string
+    saveSettings: string
+    saving: string
+    loadingSettings: string
+    settingsSaved: string
+      failedToLoad: string
+      failedToSave: string
+      enterAdminId: string
+    }
   common: {
     loading: string
   }
@@ -66,6 +138,78 @@ const translations: Record<Language, Translations> = {
       addServer: 'Add Server',
       loadingDashboard: 'Loading dashboard...',
     },
+    navigation: {
+      dashboard: 'Dashboard',
+      nodes: 'Nodes',
+      servers: 'Servers',
+      tunnels: 'Tunnels',
+      coreHealth: 'Core Health',
+      logs: 'Logs',
+      settings: 'Settings',
+      logout: 'Logout',
+      light: 'Light',
+      dark: 'Dark',
+    },
+    nodes: {
+      title: 'Nodes',
+      subtitle: 'Manage your nodes behind GFW',
+      addNode: 'Add Node',
+      viewCACertificate: 'View CA Certificate',
+      downloadCA: 'Download CA',
+    },
+    servers: {
+      title: 'Foreign Servers',
+      subtitle: 'Manage your foreign tunnel servers',
+      viewCACertificate: 'View CA Certificate',
+      downloadCA: 'Download CA',
+    },
+    tunnels: {
+      title: 'Tunnels',
+      subtitle: 'Manage your tunnel connections',
+      createTunnel: 'Create Tunnel',
+    },
+    coreHealth: {
+      title: 'Core Health',
+      subtitle: 'Monitor and manage reverse tunnel cores',
+    },
+    logs: {
+      title: 'Logs',
+      subtitle: 'View system and application logs',
+    },
+    settings: {
+      title: 'Settings',
+      frpCommunication: 'FRP Communication',
+      frpDescription: 'Use FRP reverse tunnel for panel-node communication instead of direct HTTP.',
+      enableFrp: 'Enable FRP Communication',
+      frpPort: 'FRP Port',
+      frpPortDescription: 'Port where FRP server listens for node connections',
+      frpToken: 'FRP Token (Optional)',
+      frpTokenOptional: 'FRP Token (Optional)',
+      frpTokenDescription: 'Optional authentication token for FRP connections',
+      telegramBot: 'Telegram Bot',
+      telegramDescription: 'Configure Telegram bot for remote panel management via Telegram.',
+      enableTelegram: 'Enable Telegram Bot',
+      botToken: 'Bot Token',
+      botTokenDescription: 'Get your bot token from @BotFather on Telegram',
+      adminUserIds: 'Admin User IDs',
+      adminUserIdsDescription: 'User IDs of Telegram users who can use the bot. Get your ID from @userinfobot',
+      addAdminId: 'Add Admin ID',
+      remove: 'Remove',
+      automaticBackup: 'Automatic Backup',
+      enableBackup: 'Enable Automatic Backup',
+      backupInterval: 'Backup Interval',
+      intervalUnit: 'Interval Unit',
+      minutes: 'Minutes',
+      hours: 'Hours',
+      backupDescription: 'Panel will automatically send backup files to all admin users at the specified interval.',
+      saveSettings: 'Save Settings',
+      saving: 'Saving...',
+      loadingSettings: 'Loading settings...',
+      settingsSaved: 'Settings saved successfully',
+      failedToLoad: 'Failed to load settings',
+      failedToSave: 'Failed to save settings',
+      enterAdminId: 'Enter admin user ID:',
+    },
     common: {
       loading: 'Loading...',
     },
@@ -98,6 +242,78 @@ const translations: Record<Language, Translations> = {
       addNode: 'افزودن نود',
       addServer: 'افزودن سرور',
       loadingDashboard: 'در حال بارگذاری داشبورد...',
+    },
+    navigation: {
+      dashboard: 'داشبورد',
+      nodes: 'نودها',
+      servers: 'سرورها',
+      tunnels: 'تونل‌ها',
+      coreHealth: 'سلامت هسته',
+      logs: 'لاگ‌ها',
+      settings: 'تنظیمات',
+      logout: 'خروج',
+      light: 'روشن',
+      dark: 'تاریک',
+    },
+    nodes: {
+      title: 'نودها',
+      subtitle: 'مدیریت نودهای پشت فایروال',
+      addNode: 'افزودن نود',
+      viewCACertificate: 'مشاهده گواهی CA',
+      downloadCA: 'دانلود CA',
+    },
+    servers: {
+      title: 'سرورهای خارجی',
+      subtitle: 'مدیریت سرورهای تونل خارجی',
+      viewCACertificate: 'مشاهده گواهی CA',
+      downloadCA: 'دانلود CA',
+    },
+    tunnels: {
+      title: 'تونل‌ها',
+      subtitle: 'مدیریت اتصالات تونل',
+      createTunnel: 'ایجاد تونل',
+    },
+    coreHealth: {
+      title: 'سلامت هسته',
+      subtitle: 'نظارت و مدیریت هسته‌های تونل معکوس',
+    },
+    logs: {
+      title: 'لاگ‌ها',
+      subtitle: 'مشاهده لاگ‌های سیستم و برنامه',
+    },
+    settings: {
+      title: 'تنظیمات',
+      frpCommunication: 'ارتباط FRP',
+      frpDescription: 'استفاده از تونل معکوس FRP برای ارتباط پنل-نود به جای HTTP مستقیم.',
+      enableFrp: 'فعال‌سازی ارتباط FRP',
+      frpPort: 'پورت FRP',
+      frpPortDescription: 'پورتی که سرور FRP برای اتصالات نود به آن گوش می‌دهد',
+      frpToken: 'توکن FRP (اختیاری)',
+      frpTokenOptional: 'توکن FRP (اختیاری)',
+      frpTokenDescription: 'توکن احراز هویت اختیاری برای اتصالات FRP',
+      telegramBot: 'ربات تلگرام',
+      telegramDescription: 'پیکربندی ربات تلگرام برای مدیریت از راه دور پنل از طریق تلگرام.',
+      enableTelegram: 'فعال‌سازی ربات تلگرام',
+      botToken: 'توکن ربات',
+      botTokenDescription: 'توکن ربات خود را از @BotFather در تلگرام دریافت کنید',
+      adminUserIds: 'شناسه‌های کاربری ادمین',
+      adminUserIdsDescription: 'شناسه‌های کاربری کاربران تلگرام که می‌توانند از ربات استفاده کنند. شناسه خود را از @userinfobot دریافت کنید',
+      addAdminId: 'افزودن شناسه ادمین',
+      remove: 'حذف',
+      automaticBackup: 'پشتیبان‌گیری خودکار',
+      enableBackup: 'فعال‌سازی پشتیبان‌گیری خودکار',
+      backupInterval: 'فاصله پشتیبان‌گیری',
+      intervalUnit: 'واحد فاصله',
+      minutes: 'دقیقه',
+      hours: 'ساعت',
+      backupDescription: 'پنل به طور خودکار فایل‌های پشتیبان را در فاصله مشخص شده به همه کاربران ادمین ارسال می‌کند.',
+      saveSettings: 'ذخیره تنظیمات',
+      saving: 'در حال ذخیره...',
+      loadingSettings: 'در حال بارگذاری تنظیمات...',
+      settingsSaved: 'تنظیمات با موفقیت ذخیره شد',
+      failedToLoad: 'بارگذاری تنظیمات ناموفق بود',
+      failedToSave: 'ذخیره تنظیمات ناموفق بود',
+      enterAdminId: 'شناسه کاربری ادمین را وارد کنید:',
     },
     common: {
       loading: 'در حال بارگذاری...',

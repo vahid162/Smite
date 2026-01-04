@@ -14,7 +14,7 @@ const Layout = ({ children }: LayoutProps) => {
   const location = useLocation()
   const navigate = useNavigate()
   const { logout, username } = useAuth()
-  const { language, setLanguage, dir } = useLanguage()
+  const { language, setLanguage, dir, t } = useLanguage()
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode')
     return saved ? JSON.parse(saved) : false
@@ -49,13 +49,13 @@ const Layout = ({ children }: LayoutProps) => {
   }, [])
   
   const navItems = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/nodes', label: 'Nodes', icon: Network },
-    { path: '/servers', label: 'Servers', icon: Globe },
-    { path: '/tunnels', label: 'Tunnels', icon: Activity },
-    { path: '/core-health', label: 'Core Health', icon: Heart },
-    { path: '/logs', label: 'Logs', icon: FileText },
-    { path: '/settings', label: 'Settings', icon: Settings },
+    { path: '/dashboard', label: t.navigation.dashboard, icon: LayoutDashboard },
+    { path: '/nodes', label: t.navigation.nodes, icon: Network },
+    { path: '/servers', label: t.navigation.servers, icon: Globe },
+    { path: '/tunnels', label: t.navigation.tunnels, icon: Activity },
+    { path: '/core-health', label: t.navigation.coreHealth, icon: Heart },
+    { path: '/logs', label: t.navigation.logs, icon: FileText },
+    { path: '/settings', label: t.navigation.settings, icon: Settings },
   ]
 
   return (
@@ -69,8 +69,9 @@ const Layout = ({ children }: LayoutProps) => {
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar - Always LTR regardless of language */}
         <aside
+          dir="ltr"
           className={`fixed lg:static inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
@@ -135,7 +136,7 @@ const Layout = ({ children }: LayoutProps) => {
                   className="flex items-center gap-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-                  <span className="text-sm font-medium">{darkMode ? 'Light' : 'Dark'}</span>
+                  <span className="text-sm font-medium">{darkMode ? t.navigation.light : t.navigation.dark}</span>
                 </button>
                 <button
                   onClick={() => setLanguage(language === 'en' ? 'fa' : 'en')}
@@ -155,7 +156,7 @@ const Layout = ({ children }: LayoutProps) => {
                   className="w-full flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                 >
                   <LogOut size={18} />
-                  <span className="text-sm font-medium">Logout</span>
+                  <span className="text-sm font-medium">{t.navigation.logout}</span>
                 </button>
               </div>
             </div>

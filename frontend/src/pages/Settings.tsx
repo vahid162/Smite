@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../api/client'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface FrpSettings {
   enabled: boolean
@@ -22,6 +23,7 @@ interface SettingsData {
 }
 
 const Settings = () => {
+  const { t } = useLanguage()
   const [settings, setSettings] = useState<SettingsData>({
     frp: { enabled: false, port: 7000 },
     telegram: { enabled: false, admin_ids: [] }
@@ -40,7 +42,7 @@ const Settings = () => {
       setSettings(response.data)
     } catch (error) {
       console.error('Failed to load settings:', error)
-      setMessage({ type: 'error', text: 'Failed to load settings' })
+      setMessage({ type: 'error', text: t.settings.failedToLoad })
     } finally {
       setLoading(false)
     }
@@ -51,11 +53,11 @@ const Settings = () => {
     setMessage(null)
     try {
       await api.put('/settings', settings)
-      setMessage({ type: 'success', text: 'Settings saved successfully' })
+      setMessage({ type: 'success', text: t.settings.settingsSaved })
       await loadSettings()
     } catch (error) {
       console.error('Failed to save settings:', error)
-      setMessage({ type: 'error', text: 'Failed to save settings' })
+      setMessage({ type: 'error', text: t.settings.failedToSave })
     } finally {
       setSaving(false)
     }
@@ -76,7 +78,7 @@ const Settings = () => {
   }
 
   const addAdminId = () => {
-    const newId = prompt('Enter admin user ID:')
+    const newId = prompt(t.settings.enterAdminId)
     if (newId && newId.trim()) {
       updateTelegram({
         admin_ids: [...settings.telegram.admin_ids, newId.trim()]
@@ -93,14 +95,14 @@ const Settings = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-600 dark:text-gray-400">Loading settings...</div>
+        <div className="text-gray-600 dark:text-gray-400">{t.settings.loadingSettings}</div>
       </div>
     )
   }
 
   return (
     <div>
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">Settings</h1>
+      <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">{t.settings.title}</h1>
       
       {message && (
         <div className={`mb-4 p-4 rounded-lg ${
@@ -115,30 +117,37 @@ const Settings = () => {
       <div className="space-y-6">
         {/* FRP Communication Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">FRP Communication</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t.settings.frpCommunication}</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Use FRP reverse tunnel for panel-node communication instead of direct HTTP.
+            {t.settings.frpDescription}
           </p>
           
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="frp-enabled"
-                checked={settings.frp.enabled}
-                onChange={(e) => updateFrp({ enabled: e.target.checked })}
-                className="rounded"
-              />
+            <div className="flex items-center justify-between">
               <label htmlFor="frp-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Enable FRP Communication
+                {t.settings.enableFrp}
               </label>
+              <button
+                type="button"
+                id="frp-enabled"
+                onClick={() => updateFrp({ enabled: !settings.frp.enabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  settings.frp.enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.frp.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             {settings.frp.enabled && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    FRP Port
+                    {t.settings.frpPort}
                   </label>
                   <input
                     type="number"
@@ -150,13 +159,13 @@ const Settings = () => {
                     max="65535"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Port where FRP server listens for node connections
+                    {t.settings.frpPortDescription}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    FRP Token (Optional)
+                    {t.settings.frpTokenOptional}
                   </label>
                   <input
                     type="text"
@@ -166,7 +175,7 @@ const Settings = () => {
                     placeholder="Leave empty for no authentication"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Optional authentication token for FRP connections
+                    {t.settings.frpTokenDescription}
                   </p>
                 </div>
               </>
@@ -176,30 +185,37 @@ const Settings = () => {
 
         {/* Telegram Bot Settings */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Telegram Bot</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t.settings.telegramBot}</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Configure Telegram bot for remote panel management via Telegram.
+            {t.settings.telegramDescription}
           </p>
           
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="telegram-enabled"
-                checked={settings.telegram.enabled}
-                onChange={(e) => updateTelegram({ enabled: e.target.checked })}
-                className="rounded"
-              />
+            <div className="flex items-center justify-between">
               <label htmlFor="telegram-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Enable Telegram Bot
+                {t.settings.enableTelegram}
               </label>
+              <button
+                type="button"
+                id="telegram-enabled"
+                onClick={() => updateTelegram({ enabled: !settings.telegram.enabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  settings.telegram.enabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    settings.telegram.enabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
 
             {settings.telegram.enabled && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Bot Token
+                    {t.settings.botToken}
                   </label>
                   <input
                     type="password"
@@ -209,13 +225,13 @@ const Settings = () => {
                     placeholder="Enter bot token from @BotFather"
                   />
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Get your bot token from @BotFather on Telegram
+                    {t.settings.botTokenDescription}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Admin User IDs
+                    {t.settings.adminUserIds}
                   </label>
                   <div className="space-y-2">
                     {settings.telegram.admin_ids.map((id, index) => (
@@ -234,7 +250,7 @@ const Settings = () => {
                           onClick={() => removeAdminId(index)}
                           className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                         >
-                          Remove
+                          {t.settings.remove}
                         </button>
                       </div>
                     ))}
@@ -242,16 +258,16 @@ const Settings = () => {
                       onClick={addAdminId}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                     >
-                      Add Admin ID
+                      {t.settings.addAdminId}
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    User IDs of Telegram users who can use the bot. Get your ID from @userinfobot
+                    {t.settings.adminUserIdsDescription}
                   </p>
                 </div>
 
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">Automatic Backup</h3>
+                  <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">{t.settings.automaticBackup}</h3>
                   
                   <div className="flex items-center gap-2 mb-4">
                     <input
@@ -262,7 +278,7 @@ const Settings = () => {
                       className="rounded"
                     />
                     <label htmlFor="backup-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      Enable Automatic Backup
+                      {t.settings.enableBackup}
                     </label>
                   </div>
 
@@ -271,7 +287,7 @@ const Settings = () => {
                       <div className="flex items-center gap-4">
                         <div className="flex-1">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Backup Interval
+                            {t.settings.backupInterval}
                           </label>
                           <input
                             type="number"
@@ -284,20 +300,20 @@ const Settings = () => {
                         </div>
                         <div className="flex-1">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                            Interval Unit
+                            {t.settings.intervalUnit}
                           </label>
                           <select
                             value={settings.telegram.backup_interval_unit || 'minutes'}
                             onChange={(e) => updateTelegram({ backup_interval_unit: e.target.value })}
                             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
                           >
-                            <option value="minutes">Minutes</option>
-                            <option value="hours">Hours</option>
+                            <option value="minutes">{t.settings.minutes}</option>
+                            <option value="hours">{t.settings.hours}</option>
                           </select>
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Panel will automatically send backup files to all admin users at the specified interval.
+                        {t.settings.backupDescription}
                       </p>
                     </div>
                   )}
@@ -314,7 +330,7 @@ const Settings = () => {
             disabled={saving}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Saving...' : 'Save Settings'}
+            {saving ? t.settings.saving : t.settings.saveSettings}
           </button>
         </div>
       </div>

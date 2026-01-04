@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Copy, Trash2, CheckCircle, XCircle, Download, AlertCircle } from 'lucide-react'
 import api from '../api/client'
+import { useLanguage } from '../contexts/LanguageContext'
 
 interface Node {
   id: string
@@ -13,6 +14,7 @@ interface Node {
 }
 
 const Nodes = () => {
+  const { t } = useLanguage()
   const [nodes, setNodes] = useState<Node[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -123,8 +125,8 @@ const Nodes = () => {
     <div className="w-full max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Nodes</h1>
-          <p className="text-gray-500 dark:text-gray-400">Manage your tunnel nodes</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{t.nodes.title}</h1>
+          <p className="text-gray-500 dark:text-gray-400">{t.nodes.subtitle}</p>
         </div>
         <div className="flex gap-3">
           <button
@@ -132,21 +134,21 @@ const Nodes = () => {
             className="px-4 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2"
           >
             <Copy size={18} />
-            View CA Certificate
+            {t.nodes.viewCACertificate}
           </button>
           <button
             onClick={downloadCA}
             className="px-4 py-2.5 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-all duration-200 font-medium border border-gray-200 dark:border-gray-600 flex items-center gap-2"
           >
             <Download size={18} />
-            Download CA
+            {t.nodes.downloadCA}
           </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md flex items-center gap-2"
           >
             <Plus size={20} />
-            Add Node
+            {t.nodes.addNode}
           </button>
         </div>
       </div>
@@ -309,7 +311,7 @@ const AddNodeModal = ({ onClose, onSuccess }: AddNodeModalProps) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Add Node</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t.nodes.addNode}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -363,7 +365,7 @@ const AddNodeModal = ({ onClose, onSuccess }: AddNodeModalProps) => {
               type="submit"
               className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
             >
-              Add Node
+              {t.nodes.addNode}
             </button>
           </div>
         </form>
